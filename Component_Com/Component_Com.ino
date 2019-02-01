@@ -1,7 +1,5 @@
 #include <MFRC522.h>
-
 #include <SPI.h>
-
 
 #define RST_PIN         9          // Configurable, see typical pin layout above
 #define SS_PIN          10       // Configurable, see typical pin layout above
@@ -28,23 +26,31 @@ MFRC522::StatusCode status;
 byte buffer[18];
 byte size = sizeof(buffer);
 
+bool sendData = false;
+
 //String to serial print for parsing
-String toPrint = "Data: ";
+String toPrint = "";
+String prevPrint = "";
 String rfidData = "";
 
 //pin data
-const int buttonPin = 33;
-float pressureData = 23.1;
-long timeButton = 0;
-const int sendDebounce = 1000;
+const int tempPlus5Pin = 33;
+const int tempPlus1Pin = 35;
+
+//data and debounce times
+float pressureData = 23.3;
+long timeTempPlus5 = 0;
+long timeTempPlus1 = 0;
 long timeSend = 0;
-const int compDebounce = 250;
+const int sendDebounce = 200;
+const int compDebounce = 200;
 float currentTime = 0;
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);   // Initialize serial communications with the PC
-  pinMode(33, INPUT_PULLUP);
+  pinMode(tempPlus5Pin, INPUT_PULLUP);
+  pinMode(tempPlus1Pin, INPUT_PULLUP);
   
   while (!Serial);    // Do nothing if no serial port is opened (added for Arduinos based on ATMEGA32U4)
   SPI.begin();      // Init SPI bus
@@ -58,64 +64,82 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  
-  toPrint = "";
-  currentTime = millis();
-  if (digitalRead(buttonPin) == LOW && currentTime - timeButton > compDebounce)
+  if (!sendData)
   {
-    pressureData += 2;
-    timeButton = millis();
+    byte temp = Serial.read();
+    if(temp == 'Z')
+    {
+      sendData = true;
+    }
   }
-  toPrint+= "P-" + (String)pressureData;
-  /*
-  else if (digitalRead(CPin) == HIGH  && millis() - timeC > debounce)
+  else
   {
-    toPrint += "C ";
-    timeC = millis();
-    sendData = true;
-  }
+    prevPrint = toPrint;
+    toPrint = "";
+    currentTime = millis();
+    if (digitalRead(tempPlus5Pin) == LOW && currentTime - timeTempPlus5 > compDebounce)
+    {
+      pressureData += 5;
+      timeTempPlus5 = millis();
+    }
 
-  else if (digitalRead(GPin) == HIGH  && millis() - timeG > debounce)
-  {
-    toPrint += "G ";
-    timeG = millis();
-    sendData = true;
-  }
-
-  else if (digitalRead(TPin) == HIGH  && millis() - timeT > debounce)
-  {
-    toPrint += "T ";
-    timeT = millis();
-    sendData = true;
-  }
+    if (digitalRead(tempPlus1Pin) == LOW && currentTime - timeTempPlus1 > compDebounce)
+    {
+      pressureData += 1;
+      timeTempPlus1 = millis();
+    }
+    toPrint += "P-" + (String)pressureData;
+    
+    /*
+    else if (digitalRead(CPin) == HIGH  && millis() - timeC > debounce)
+    {
+      toPrint += "C ";
+      timeC = millis();
+      sendData = true;
+    }
   
-  if (digitalRead(ConPin) == HIGH  && millis() - timeCon > debounce)
-  {
-    toPrint += "confirm ";
-    timeCon = millis();
-    sendData = true;
-  }
-
-  if (digitalRead(BackPin) == HIGH  && millis() - timeBack > debounce)
-  {
-    toPrint += "back ";
-    timeBack = millis();
-    sendData = true;
-  }
+    else if (digitalRead(GPin) == HIGH  && millis() - timeG > debounce)
+    {
+      toPrint += "G ";
+      timeG = millis();
+      sendData = true;
+    }
   
-  rfidCheck();
-  if (rfidData != "" and rfidData != prevCheck)
-  {
-    toPrint += rfidData;
-    prevCheck = rfidData;
-    sendData = true;
-  }
-  */
-  toPrint = toPrint+ "\n";
-  if (currentTime - timeSend > sendDebounce)
-  {
-    Serial.println(toPrint);
-    timeSend = millis();
+    else if (digitalRead(TPin) == HIGH  && millis() - timeT > debounce)
+    {
+      toPrint += "T ";
+      timeT = millis();
+      sendData = true;
+    }
+    
+    if (digitalRead(ConPin) == HIGH  && millis() - timeCon > debounce)
+    {
+      toPrint += "confirm ";
+      timeCon = millis();
+      sendData = true;
+    }
+  
+    if (digitalRead(BackPin) == HIGH  && millis() - timeBack > debounce)
+    {
+      toPrint += "back ";
+      timeBack = millis();
+      sendData = true;
+    }
+    
+    rfidCheck();
+    if (rfidData != "" and rfidData != prevCheck)
+    {
+      toPrint += rfidData;
+      prevCheck = rfidData;
+      sendData = true;
+    }
+    */
+    
+    if (currentTime - timeSend > sendDebounce && toPrint != prevPrint)
+    {
+      Serial.println(toPrint);
+      timeSend = millis();
+    }
   }
  
 }

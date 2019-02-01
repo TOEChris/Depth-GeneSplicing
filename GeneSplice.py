@@ -1,5 +1,6 @@
 from kivy.app import App
 from kivy.lang import Builder
+from kivy.logger import Logger
 from kivy.properties import OptionProperty, NumericProperty, ListProperty, BooleanProperty
 
 from kivy.core.window import Window
@@ -158,6 +159,16 @@ kv = '''
             RoundedRectangle:
                 size: self.width - 50, self.height - 50
                 pos: self.x + 25, self.y + 25
+        GenLabel:
+            id: tempInfo
+            font_size: 116
+            pos: temperature.width/2 - 45, temperature.height/4
+        GenLabel:
+            font_size: 56
+            pos: temperature.width/2.4, temperature.height/1.5
+            text: 'Temperature:'
+        
+            
     Div:
         id: voltage
         size: root.size
@@ -193,7 +204,11 @@ kv = '''
 
 Builder.load_string(kv)
 file = open("results.txt","w")
-ser = serial.Serial('/dev/ttyACM0', baudrate=9600, timeout = 0);
+port = '/dev/ttyACM0'
+ser = serial.Serial(port, baudrate=9600, timeout = 0);
+
+#needed to give enough time for the port to initiate
+time.sleep(4)
 
 class Handler(BaseHTTPRequestHandler):
     def _set_headers(self):
@@ -212,7 +227,6 @@ class Server(socketserver.ThreadingMixIn, HTTPServer):
     def process_requests(self, *args):
         while(True):
             self.handle_request()
-
 
 def buttonTrig():
     counter = 0
@@ -377,17 +391,25 @@ class GenLabel(Label):
         
 class SpliceApp(App):
     def __init__(self, **kwargs):
+        self.event = Clock.schedule_interval(self.serialRead, 0.20)
         super(SpliceApp, self).__init__(**kwargs)
+        
     def serialRead(self, *args):
         data = ser.readline().decode('ascii').split("-")
-        if (not data == ""):
-            file.write(str(data))
-            file.close()
+        file.write(str(data))
+        if (len(data) >= 2 and data[0] == 'P'):
+            try:
+                textToSet = str(round(float(data[1]), 1))
+                self.instance.children[0].ids.tempInfo.text = textToSet
+            except ValueError:
+                pass
        
     def build(self):
         self.instance = Base()
+        
+        #indicates to Arduino to start sending data
+        ser.write(b'Z\r\n')
         self.buttonThread = threading.Thread(target = buttonTrig).start()
-        self.event = Clock.schedule_interval(self.serialRead, 0.25)
         return self.instance
 
 def serverRun(server_class=Server, handler_class=Handler, port=80):
@@ -398,5 +420,6 @@ def serverRun(server_class=Server, handler_class=Handler, port=80):
     t.start()
     
 if __name__ == '__main__':
-    serverRun()
+    #serverRun()
+    
     SpliceApp().run()
