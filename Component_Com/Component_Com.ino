@@ -29,20 +29,26 @@ byte size = sizeof(buffer);
 bool sendData = false;
 
 //String to serial print for parsing
-String toPrint = "";
+String toPrint = "Temp";
 String prevPrint = "";
 String rfidData = "";
 
 //pin data
+const int rotAPin = 2;
+const int rotBPin = 3;
 const int tempPlus5Pin = 33;
 const int tempPlus1Pin = 35;
+const int startPin = 23;
 
 //data and debounce times
 float pressureData = 23.3;
+float rotData = 67;
+int rotAState;
+int lastRotAState;
 long timeTempPlus5 = 0;
 long timeTempPlus1 = 0;
 long timeSend = 0;
-const int sendDebounce = 200;
+const int sendDebounce = 0;
 const int compDebounce = 200;
 float currentTime = 0;
 
@@ -51,6 +57,10 @@ void setup() {
   Serial.begin(9600);   // Initialize serial communications with the PC
   pinMode(tempPlus5Pin, INPUT_PULLUP);
   pinMode(tempPlus1Pin, INPUT_PULLUP);
+  pinMode(rotAPin, INPUT);
+  lastRotAState = digitalRead(rotAPin);
+  pinMode(rotBPin, INPUT);
+  pinMode(startPin, INPUT_PULLUP);
   
   while (!Serial);    // Do nothing if no serial port is opened (added for Arduinos based on ATMEGA32U4)
   SPI.begin();      // Init SPI bus
@@ -66,10 +76,10 @@ void loop() {
   // put your main code here, to run repeatedly:
   if (!sendData)
   {
-    byte temp = Serial.read();
-    if(temp == 'Z')
+    if(digitalRead(startPin) == LOW)
     {
       sendData = true;
+      Serial.print("S-True-");
     }
   }
   else
@@ -88,8 +98,22 @@ void loop() {
       pressureData += 1;
       timeTempPlus1 = millis();
     }
-    toPrint += "P-" + (String)pressureData;
+    toPrint += "P-" + (String)pressureData + "-";
     
+    rotAState = digitalRead(rotAPin);
+    if (rotAState != lastRotAState)
+    {
+      if (digitalRead(rotBPin) != rotAState)
+      {
+        rotData += 0.5;
+      }
+      else
+      {
+        rotData -= 0.5;
+      }
+      lastRotAState = rotAState;  
+    }
+    toPrint += "R-" + (String)rotData + "-";
     /*
     else if (digitalRead(CPin) == HIGH  && millis() - timeC > debounce)
     {
@@ -137,8 +161,8 @@ void loop() {
     
     if (currentTime - timeSend > sendDebounce && toPrint != prevPrint)
     {
-      Serial.println(toPrint);
       timeSend = millis();
+      Serial.println(toPrint);
     }
   }
  

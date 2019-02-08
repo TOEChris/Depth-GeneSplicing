@@ -4,7 +4,7 @@ from kivy.logger import Logger
 from kivy.properties import OptionProperty, NumericProperty, ListProperty, BooleanProperty
 
 from kivy.core.window import Window
-from kivy.graphics import Rectangle, RoundedRectangle, Color, Line, Quad
+from kivy.graphics import Rectangle, RoundedRectangle, Color, Line, Quad, Mesh
 from kivy.clock import Clock
 from kivy.core.text import Label as CoreLabel
 from kivy.graphics.instructions import InstructionGroup
@@ -41,9 +41,6 @@ kv = '''
         id: catalyst
         canvas.before:
             Color:
-                rgb: .62, .218, .00
-        canvas:
-            Color:
                 rgb: .62, .218, .008
             Rectangle:
                 size: self.size
@@ -53,6 +50,12 @@ kv = '''
             RoundedRectangle:
                 size: self.width - 50, self.height - 50
                 pos: self.x + 25, self.y + 25
+        canvas:
+            Mesh:
+                mode: 'triangle_fan'
+                vertices: self.meshPoints
+                indices: self.meshInd
+                texture: 
             Color:
                 rgb: 0.3,0.3,0.3
             Rectangle:
@@ -159,18 +162,30 @@ kv = '''
             RoundedRectangle:
                 size: self.width - 50, self.height - 50
                 pos: self.x + 25, self.y + 25
+            Color:
+                rgb: .008, .435, .620
+            RoundedRectangle:
+                size: (self.width*4)/6, self.height/6
+                pos: self.width/6, self.height/1.2
         GenLabel:
             id: tempInfo
             font_size: 116
             pos: temperature.width/2 - 45, temperature.height/4
+            text: 'Waiting...'
         GenLabel:
             font_size: 56
-            pos: temperature.width/2.4, temperature.height/1.5
-            text: 'Temperature:'
-        
-            
+            pos: temperature.width/2.4, temperature.height/1.25
+            text: 'Temperature'
+        GenLabel:
+            id: targetLabel
+            pos: temperature.width/3, temperature.height/2
+            text: 'Target:'
+        GenLabel:
+            id: targetData
+            pos: temperature.width/1.75, temperature.height/2
+            text: '-'
     Div:
-        id: voltage
+        id: pressure
         size: root.size
         pos: root.pos
         canvas:
@@ -184,8 +199,31 @@ kv = '''
             RoundedRectangle:
                 size: self.width - 50, self.height - 50
                 pos: self.x + 25, self.y + 25
+            Color:
+                rgb: .250, .60, .175
+            RoundedRectangle:
+                size: (((root.width*4)/6)/3), self.height/6
+                pos: ((root.width/3)+(root.width/18)), self.height/1.2
+        GenLabel:
+            font_size: 64
+            pos: 920, root.height/1.225
+            text: 'Pressure'
+        GenLabel:
+            id: pressInfo
+            font_size: 116
+            pos: 920, root.height/4
+            text: 'Waiting...'
+        GenLabel:
+            id: pressLabel
+            pos: 850, root.height/2
+            text: 'Target:'
+        GenLabel:
+            id: pressData
+            pos: 1000, root.height/2
+            text: '-'
+                
     Div:
-        id: pressure
+        id: voltage
         size: root.size
         pos: root.pos
         canvas:
@@ -199,7 +237,15 @@ kv = '''
             RoundedRectangle:
                 size: self.width - 50, self.height - 50
                 pos: self.x + 25, self.y + 25
-
+            Color:
+                rgb: .62, .60, .012
+            RoundedRectangle:
+                size: (((root.width*4)/6)/3), self.height/6
+                pos: ((root.width/3)*2+(root.width/18)), self.height/1.2
+        GenLabel:
+            font_size: 64
+            pos: 1550, root.height/1.225
+            text: 'Voltage'
 '''
 
 Builder.load_string(kv)
@@ -208,7 +254,7 @@ port = '/dev/ttyACM0'
 ser = serial.Serial(port, baudrate=9600, timeout = 0);
 
 #needed to give enough time for the port to initiate
-time.sleep(4)
+time.sleep(3)
 
 class Handler(BaseHTTPRequestHandler):
     def _set_headers(self):
@@ -239,39 +285,39 @@ def buttonTrig():
 
 class Cata(FloatLayout):
     endPuzzle = False
+    startTime = 0
     gravity = 0.05
     velocity = 0
     accel = 0
     accelChange = True
     close = BooleanProperty(False)
     points = ListProperty([28,850,28,850])
+    meshPoints = ListProperty([100,100,0,0, 150,500,0,0, 1,2,0,0, 2,1,0,0, 2,2,0,0, 4,4,0,0, 5,2,0,0])
+    meshInd = [0,1,2,3,4,5,6]
     counter = 0
     crossed = [False, False, False, False, False]
     linewidth = NumericProperty(3)
+    nextPoint = 321
+    prevPoint = 28
     def __init__(self, **kwargs):
         super(Cata, self).__init__(**kwargs)
         self.app = App.get_running_app()
-        self.update = Clock.schedule_interval(self.update_points, .016)
-        self.startTime = time.time()
         
     def update_points(self, *args):
-        self.endTime = time.time()
-        timerData = self.endTime - self.startTime
         app = self.app
-
-        #timer data
-        if (not self.endPuzzle):
-            if (timerData < 10):
-                app.root.children[1].ids.timerData.text = ('%.2f' % round(10 - timerData,2))
-                if (10 - timerData < 3):
-                    app.root.children[1].ids.timerData.color = (1,0,0)
-                else:
-                    app.root.children[1].ids.timerData.color = (1,1,1)
-            else:
-                app.root.children[1].ids.timerData.text = ('%.2f' % 0.0)
         temp = []
         temp.append(self.points.pop())
         temp.append(self.points.pop())
+        
+        #timer data, proportion of distance crossed
+        if (not self.endPuzzle):
+            timerData = ((self.nextPoint - round(temp[1],1))) / ((self.nextPoint - self.prevPoint) / 10)
+            app.root.children[1].ids.timerData.text = ('%.2f' % round(timerData,2))
+            if (timerData < 3 and not app.root.children[1].ids.timerData.color == (1,0,0)):
+                app.root.children[1].ids.timerData.color = (1,0,0)
+            else:
+                app.root.children[1].ids.timerData.color = (1,1,1)
+                    
         self.accelChange = False
         #acceleration per height region
         self.accel += self.gravity
@@ -287,12 +333,12 @@ class Cata(FloatLayout):
         self.accelChange = True
         #constant x movement for different sections. first and last are smaller than the rest
         if (not self.crossed[0]):
-            temp[1] += .5125
+            temp[1] += .54 #.5125
         elif (not self.crossed[4]):
-            temp[1] += .54 #.5316
+            temp[1] += .54 #.54 .5316
         elif (self.crossed[0] and self.crossed[4]):
-            temp[1] += .4883
-        temp[1] = round(temp[1], 4)
+            temp[1] += .5 #.4883
+        
         self.points.append(temp[1])
         temp[0] -= self.velocity
         if (temp[0] > 1050):
@@ -303,49 +349,45 @@ class Cata(FloatLayout):
         self.points.append(temp[0])
         
         
-        
         if (self.velocity > 0):
             self.velocity = 0
         
+        
         if (not self.crossed[0] and self.points[-2] >= 321):
+            self.prevPoint = 321
+            self.nextPoint = 640
             self.crossed[0] = True
             self.canvas.remove(self.canvas.get_group('cover')[0])
             app.root.children[1].ids.statusText.text = 'STAGE 2 OF 6'
-            file.write("1. " + str(timerData) + "\n")
-            self.restartTimer()
         elif(not self.crossed[1] and self.points[-2] >= 640):
+            self.prevPoint = 640
+            self.nextPoint = 959
             self.crossed[1] = True
             self.canvas.remove(self.canvas.get_group('cover')[0])
             app.root.children[1].ids.statusText.text = 'STAGE 3 OF 6'
-            file.write("2. " + str(timerData) + "\n")
-            self.restartTimer()
         elif(not self.crossed[2] and self.points[-2] >= 959):
+            self.prevPoint = 959
+            self.nextPoint = 1280
             self.crossed[2] = True
             self.canvas.remove(self.canvas.get_group('cover')[0])
             app.root.children[1].ids.statusText.text = 'STAGE 4 OF 6'
-            file.write("3. " + str(timerData) + "\n")
-            self.restartTimer()
         elif(not self.crossed[3] and self.points[-2] >= 1280):
+            self.prevPoint = 1280
+            self.nextPoint = 1600
             self.crossed[3] = True
             self.canvas.remove(self.canvas.get_group('cover')[0])
             app.root.children[1].ids.statusText.text = 'STAGE 5 OF 6'
-            file.write("4. " + str(timerData) + "\n")
-            self.restartTimer(app)
         elif(not self.crossed[4] and self.points[-2] >= 1600):
+            self.prevPoint = 1600
+            self.nextPoint = 1892
             self.crossed[4] = True
             self.canvas.remove(self.canvas.get_group('cover')[0])
             self.canvas.remove(self.canvas.get_group('cover')[0])
             app.root.children[1].ids.statusText.text = 'STAGE 6 OF 6'
-            file.write("5. " + str(timerData) + "\n")
-            self.restartTimer(app)
         elif(self.points[-2] >= 1892):
             self.endPuzzle = True
             app.root.children[1].ids.timerData.text = ('%.2f' % 0.0)
-            file.write("End: " + str(timerData) + "\n")
-            for item in self.points:
-                file.write(str(item) + " ")
-            file.close()
-            Clock.unschedule(self.update)
+            Clock.unschedule(app.update)
 
         if (self.counter == 20):
             self.points.append(temp[1])
@@ -353,10 +395,6 @@ class Cata(FloatLayout):
             self.counter = 0
         else:
             self.counter += 1
-
-    def restartTimer(self, *args):
-        self.startTime = time.time()
-        self.endTime = time.time()
             
     def jump(self, *args):
         if (not self.accelChange):
@@ -395,22 +433,44 @@ class SpliceApp(App):
         super(SpliceApp, self).__init__(**kwargs)
         
     def serialRead(self, *args):
-        data = ser.readline().decode('ascii').split("-")
-        file.write(str(data))
-        if (len(data) >= 2 and data[0] == 'P'):
-            try:
-                textToSet = str(round(float(data[1]), 1))
-                self.instance.children[0].ids.tempInfo.text = textToSet
-            except ValueError:
-                pass
+        data = self.getLatestStatus().decode('ascii').split("-")
+        app = App.get_running_app()
+        while(len(data) >= 2):
+            if (data[0] == 'P'):
+                try:
+                    textToSet = str(round(float(data[1]), 2))
+                    self.instance.children[0].ids.tempInfo.text = textToSet
+                except Exception:
+                    pass
+                del data[0:1]
+            elif(data[0] == 'S'):
+                if (str(data[1]) == 'True'):
+                    self.buttonThread = threading.Thread(target = buttonTrig).start()
+                    self.update = Clock.schedule_interval(self.instance.children[1].ids.catalyst.update_points, .016)
+                del data[0:1]
+            elif(data[0] == 'R'):
+                try:
+                    if (float(data[1]) < 0):
+                        textToSet = "0"
+                    else:
+                        textToSet = str(round(float(data[1]), 2))
+                    self.instance.children[0].ids.pressInfo.text = textToSet
+                except Exception:
+                    pass
+                del data[0:1]
+            
        
     def build(self):
         self.instance = Base()
-        
         #indicates to Arduino to start sending data
-        ser.write(b'Z\r\n')
-        self.buttonThread = threading.Thread(target = buttonTrig).start()
+        #ser.write(b'Z\r\n')
         return self.instance
+
+    def getLatestStatus(self, *args):
+        status = ser.readline()
+        while ser.inWaiting() > 0:
+            status = ser.readline()
+        return status
 
 def serverRun(server_class=Server, handler_class=Handler, port=80):
     server_address = ('10.24.7.15', port)
@@ -421,5 +481,4 @@ def serverRun(server_class=Server, handler_class=Handler, port=80):
     
 if __name__ == '__main__':
     #serverRun()
-    
     SpliceApp().run()
