@@ -2,7 +2,9 @@ from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
 from kivy.properties import OptionProperty, NumericProperty, ListProperty, BooleanProperty
+from kivy.garden.collider import Collide2DPoly
 
+from kivy.config import Config
 from kivy.core.window import Window
 from kivy.graphics import Rectangle, RoundedRectangle, Color, Line, Quad, Mesh
 from kivy.clock import Clock
@@ -14,10 +16,13 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.widget import Widget
 from kivy.uix.label import Label
 from kivy.uix.button import Button
+from kivy.uix.scatter import Scatter
 
 import time
+import random
 import wiringpi
 import serial
+import io
 import gaugette.gpio
 import gaugette.switch as CS
 from functools import partial
@@ -51,11 +56,16 @@ kv = '''
                 size: self.width - 50, self.height - 50
                 pos: self.x + 25, self.y + 25
         canvas:
+            Color:
+                rgb: .525, .218, .008
+            Mesh:
+                mode: 'triangle_strip'
+                vertices: self.meshPointsTop
+                indices: self.meshIndTop
             Mesh:
                 mode: 'triangle_fan'
-                vertices: self.meshPoints
-                indices: self.meshInd
-                texture: 
+                vertices: self.meshPointsBot
+                indices: self.meshIndBot
             Color:
                 rgb: 0.3,0.3,0.3
             Rectangle:
@@ -168,14 +178,14 @@ kv = '''
                 size: (self.width*4)/6, self.height/6
                 pos: self.width/6, self.height/1.2
         GenLabel:
+            font_size: 56
+            pos: temperature.width/2.4, temperature.height/1.25
+            text: 'Temperature'
+        GenLabel:
             id: tempInfo
             font_size: 116
             pos: temperature.width/2 - 45, temperature.height/4
             text: 'Waiting...'
-        GenLabel:
-            font_size: 56
-            pos: temperature.width/2.4, temperature.height/1.25
-            text: 'Temperature'
         GenLabel:
             id: targetLabel
             pos: temperature.width/3, temperature.height/2
@@ -214,12 +224,12 @@ kv = '''
             pos: 920, root.height/4
             text: 'Waiting...'
         GenLabel:
-            id: pressLabel
+            id: targetLabel
             pos: 850, root.height/2
             text: 'Target:'
         GenLabel:
-            id: pressData
-            pos: 1000, root.height/2
+            id: targetData
+            pos: 1025, root.height/2
             text: '-'
                 
     Div:
@@ -246,12 +256,26 @@ kv = '''
             font_size: 64
             pos: 1550, root.height/1.225
             text: 'Voltage'
+        GenLabel:
+            id: voltInfo
+            font_size: 116
+            pos: 1550, root.height/4
+            text: 'Waiting...'
+        GenLabel:
+            id: targetLabel
+            pos: 1500, root.height/2
+            text: 'Target:'
+        GenLabel:
+            id: targetData
+            pos: 1650, root.height/2
+            text: '-'
 '''
 
 Builder.load_string(kv)
 file = open("results.txt","w")
 port = '/dev/ttyACM0'
 ser = serial.Serial(port, baudrate=9600, timeout = 0);
+sio = io.TextIOWrapper(io.BufferedRWPair(ser,ser), newline='\n')
 
 #needed to give enough time for the port to initiate
 time.sleep(3)
@@ -292,8 +316,12 @@ class Cata(FloatLayout):
     accelChange = True
     close = BooleanProperty(False)
     points = ListProperty([28,850,28,850])
-    meshPoints = ListProperty([100,100,0,0, 150,500,0,0, 1,2,0,0, 2,1,0,0, 2,2,0,0, 4,4,0,0, 5,2,0,0])
-    meshInd = [0,1,2,3,4,5,6]
+    meshPointsBot = [50,655,0,0, 321,875,0,0, 640,850,0,0, 960,950,0,0, 1280,975,0,0, 1600,800,0,0, 1895,700,0,0, 1895,655,0,0]
+    meshBotCollide = Collide2DPoly([float(x) for x in meshPointsBot if x != 0], cache=True)
+    meshIndBot = [0,1,2,3,4,5,6,7]
+    meshPointsTop = [50,1055,0,0, 321,955,0,0, 640,955,0,0, 960,1000,0,0, 1280,1030,0,0, 1600,975,0,0, 1895,750,0,0, 1895,1055,0,0, 960,1055,0,0, 640,1055,0,0]
+    meshTopCollide = Collide2DPoly([float(x) for x in meshPointsTop if x != 0], cache=True)
+    meshIndTop = [0,1,2,3,4,5,6,7,5,8,9,1,7,0]
     counter = 0
     crossed = [False, False, False, False, False]
     linewidth = NumericProperty(3)
@@ -302,19 +330,22 @@ class Cata(FloatLayout):
     def __init__(self, **kwargs):
         super(Cata, self).__init__(**kwargs)
         self.app = App.get_running_app()
-        
+        Logger.info([self.meshBotCollide])
     def update_points(self, *args):
         app = self.app
         temp = []
         temp.append(self.points.pop())
         temp.append(self.points.pop())
-        
+        if ((float(temp[1]), float(temp[0])) in self.meshBotCollide or (float(temp[1]), float(temp[0])) in self.meshTopCollide):
+            pass
+            #Clock.unschedule(self.update)
         #timer data, proportion of distance crossed
         if (not self.endPuzzle):
             timerData = ((self.nextPoint - round(temp[1],1))) / ((self.nextPoint - self.prevPoint) / 10)
             app.root.children[1].ids.timerData.text = ('%.2f' % round(timerData,2))
-            if (timerData < 3 and not app.root.children[1].ids.timerData.color == (1,0,0)):
+            if (timerData < 3):
                 app.root.children[1].ids.timerData.color = (1,0,0)
+                app.stageCheck(temp[1])
             else:
                 app.root.children[1].ids.timerData.color = (1,1,1)
                     
@@ -351,43 +382,6 @@ class Cata(FloatLayout):
         
         if (self.velocity > 0):
             self.velocity = 0
-        
-        
-        if (not self.crossed[0] and self.points[-2] >= 321):
-            self.prevPoint = 321
-            self.nextPoint = 640
-            self.crossed[0] = True
-            self.canvas.remove(self.canvas.get_group('cover')[0])
-            app.root.children[1].ids.statusText.text = 'STAGE 2 OF 6'
-        elif(not self.crossed[1] and self.points[-2] >= 640):
-            self.prevPoint = 640
-            self.nextPoint = 959
-            self.crossed[1] = True
-            self.canvas.remove(self.canvas.get_group('cover')[0])
-            app.root.children[1].ids.statusText.text = 'STAGE 3 OF 6'
-        elif(not self.crossed[2] and self.points[-2] >= 959):
-            self.prevPoint = 959
-            self.nextPoint = 1280
-            self.crossed[2] = True
-            self.canvas.remove(self.canvas.get_group('cover')[0])
-            app.root.children[1].ids.statusText.text = 'STAGE 4 OF 6'
-        elif(not self.crossed[3] and self.points[-2] >= 1280):
-            self.prevPoint = 1280
-            self.nextPoint = 1600
-            self.crossed[3] = True
-            self.canvas.remove(self.canvas.get_group('cover')[0])
-            app.root.children[1].ids.statusText.text = 'STAGE 5 OF 6'
-        elif(not self.crossed[4] and self.points[-2] >= 1600):
-            self.prevPoint = 1600
-            self.nextPoint = 1892
-            self.crossed[4] = True
-            self.canvas.remove(self.canvas.get_group('cover')[0])
-            self.canvas.remove(self.canvas.get_group('cover')[0])
-            app.root.children[1].ids.statusText.text = 'STAGE 6 OF 6'
-        elif(self.points[-2] >= 1892):
-            self.endPuzzle = True
-            app.root.children[1].ids.timerData.text = ('%.2f' % 0.0)
-            Clock.unschedule(app.update)
 
         if (self.counter == 20):
             self.points.append(temp[1])
@@ -418,6 +412,17 @@ class Bottom(GridLayout):
 class Div(Widget):
     def __init__(self, **kwargs):
         super(Div, self).__init__(**kwargs)
+
+    def generateTarget(self, *args):
+        app = App.get_running_app()
+        if ("range" in args):
+            self.target1 = random.randint(10,97)
+            self.target2 = self.target1 + 2
+            self.children[0].text = str(self.target1) + "-" + str(self.target2) 
+        else:
+            self.target1 = random.randint(10,99)
+            self.children[0].text = str(self.target1)
+        
 class Base(GridLayout):
     def __init__(self, **kwargs):
         super(Base, self).__init__(**kwargs)
@@ -429,25 +434,26 @@ class GenLabel(Label):
         
 class SpliceApp(App):
     def __init__(self, **kwargs):
-        self.event = Clock.schedule_interval(self.serialRead, 0.20)
+        self.serRead = Clock.schedule_interval(self.serialRead, 0.20)
         super(SpliceApp, self).__init__(**kwargs)
         
     def serialRead(self, *args):
-        data = self.getLatestStatus().decode('ascii').split("-")
-        app = App.get_running_app()
+        data = self.getLatestStatus()
+        Logger.info(data)
         while(len(data) >= 2):
             if (data[0] == 'P'):
                 try:
                     textToSet = str(round(float(data[1]), 2))
                     self.instance.children[0].ids.tempInfo.text = textToSet
-                except Exception:
+                except ValueError:
                     pass
-                del data[0:1]
             elif(data[0] == 'S'):
                 if (str(data[1]) == 'True'):
                     self.buttonThread = threading.Thread(target = buttonTrig).start()
                     self.update = Clock.schedule_interval(self.instance.children[1].ids.catalyst.update_points, .016)
-                del data[0:1]
+                    self.instance.children[0].ids.temperature.generateTarget()
+                    self.instance.children[0].ids.pressure.generateTarget("range")
+                    self.instance.children[0].ids.voltage.generateTarget() 
             elif(data[0] == 'R'):
                 try:
                     if (float(data[1]) < 0):
@@ -457,8 +463,60 @@ class SpliceApp(App):
                     self.instance.children[0].ids.pressInfo.text = textToSet
                 except Exception:
                     pass
-                del data[0:1]
-            
+            del data[0:1]
+    def stageCheck(self, *args):
+        temp = args[0]
+        cata = self.instance.children[1].ids.catalyst
+        if (not cata.crossed[0] and temp >= 321):
+            cata.prevPoint = 321
+            cata.nextPoint = 640
+            cata.crossed[0] = True
+            cata.canvas.remove(cata.canvas.get_group('cover')[0])
+            self.instance.children[1].ids.statusText.text = 'STAGE 2 OF 6'
+            self.instance.children[0].ids.temperature.generateTarget()
+            self.instance.children[0].ids.pressure.generateTarget("range")
+            self.instance.children[0].ids.voltage.generateTarget() 
+        elif(not cata.crossed[1] and temp >= 640):
+            cata.prevPoint = 640
+            cata.nextPoint = 959
+            cata.crossed[1] = True
+            cata.canvas.remove(cata.canvas.get_group('cover')[0])
+            self.instance.children[1].ids.statusText.text = 'STAGE 3 OF 6'
+            self.instance.children[0].ids.temperature.generateTarget()
+            self.instance.children[0].ids.pressure.generateTarget("range")
+            self.instance.children[0].ids.voltage.generateTarget()
+        elif(not cata.crossed[2] and temp >= 959):
+            cata.prevPoint = 959
+            cata.nextPoint = 1280
+            cata.crossed[2] = True
+            cata.canvas.remove(cata.canvas.get_group('cover')[0])
+            self.instance.children[1].ids.statusText.text = 'STAGE 4 OF 6'
+            self.instance.children[0].ids.temperature.generateTarget()
+            self.instance.children[0].ids.pressure.generateTarget("range")
+            self.instance.children[0].ids.voltage.generateTarget()
+        elif(not cata.crossed[3] and temp >= 1280):
+            cata.prevPoint = 1280
+            cata.nextPoint = 1600
+            cata.crossed[3] = True
+            cata.canvas.remove(cata.canvas.get_group('cover')[0])
+            self.instance.children[1].ids.statusText.text = 'STAGE 5 OF 6'
+            self.instance.children[0].ids.temperature.generateTarget()
+            self.instance.children[0].ids.pressure.generateTarget("range")
+            self.instance.children[0].ids.voltage.generateTarget()
+        elif(not cata.crossed[4] and temp >= 1600):
+            cata.prevPoint = 1600
+            cata.nextPoint = 1892
+            cata.crossed[4] = True
+            cata.canvas.remove(cata.canvas.get_group('cover')[0])
+            cata.canvas.remove(cata.canvas.get_group('cover')[0])
+            self.instance.children[1].ids.statusText.text = 'STAGE 6 OF 6'
+            self.instance.children[0].ids.temperature.generateTarget()
+            self.instance.children[0].ids.pressure.generateTarget("range")
+            self.instance.children[0].ids.voltage.generateTarget()
+        elif(temp >= 1892):
+            cata.endPuzzle = True
+            self.instance.children[1].ids.timerData.text = ('%.2f' % 0.0)
+            Clock.unschedule(self.update)
        
     def build(self):
         self.instance = Base()
@@ -467,9 +525,16 @@ class SpliceApp(App):
         return self.instance
 
     def getLatestStatus(self, *args):
-        status = ser.readline()
-        while ser.inWaiting() > 0:
-            status = ser.readline()
+        valid = False
+        while not valid:
+            status = sio.readline()
+            while ser.inWaiting() > 0:
+                status = sio.readline()
+            status = status.split('-')
+            if (len(status) == 0):
+                valid = True
+            elif (('S' in status) or ('\n' in status[-1])):
+                valid = True
         return status
 
 def serverRun(server_class=Server, handler_class=Handler, port=80):

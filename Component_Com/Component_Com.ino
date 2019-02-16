@@ -41,17 +41,19 @@ const int tempPlus1Pin = 35;
 const int startPin = 23;
 
 //data and debounce times
-float pressureData = 23.3;
-float rotData = 67;
+double pressureData = 23.3;
+double rotData = 67.0;
 int rotAState;
 int lastRotAState;
 long timeTempPlus5 = 0;
 long timeTempPlus1 = 0;
 long timeSend = 0;
-const int sendDebounce = 0;
-const int compDebounce = 200;
+const int sendDebounce = 10;
+const int compDebounce = 500;
 float currentTime = 0;
-
+//String buffer
+char strBuff[10];
+String temp;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);   // Initialize serial communications with the PC
@@ -98,7 +100,9 @@ void loop() {
       pressureData += 1;
       timeTempPlus1 = millis();
     }
-    toPrint += "P-" + (String)pressureData + "-";
+    dtostrf(pressureData, 10, 1, strBuff);
+    temp = strBuff;
+    toPrint += "P-" + temp + "-";
     
     rotAState = digitalRead(rotAPin);
     if (rotAState != lastRotAState)
@@ -109,11 +113,14 @@ void loop() {
       }
       else
       {
-        rotData -= 0.5;
+        if (!(rotData <= 0))
+          rotData -= 0.5;
       }
       lastRotAState = rotAState;  
     }
-    toPrint += "R-" + (String)rotData + "-";
+    dtostrf(rotData, 10, 1, strBuff);
+    temp = strBuff;
+    toPrint += "R-" + temp;
     /*
     else if (digitalRead(CPin) == HIGH  && millis() - timeC > debounce)
     {
