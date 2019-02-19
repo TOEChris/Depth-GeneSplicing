@@ -48,7 +48,7 @@ int lastRotAState;
 long timeTempPlus5 = 0;
 long timeTempPlus1 = 0;
 long timeSend = 0;
-const int sendDebounce = 10;
+const int sendDebounce = 40;
 const int compDebounce = 500;
 float currentTime = 0;
 //String buffer
@@ -76,6 +76,14 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  if (Serial.available())
+  {
+    byte resetCheck = Serial.read();
+    if (resetCheck == 'R')
+    {
+      reset();
+    }
+  }
   if (!sendData)
   {
     if(digitalRead(startPin) == LOW)
@@ -165,8 +173,8 @@ void loop() {
       sendData = true;
     }
     */
-    
-    if (currentTime - timeSend > sendDebounce && toPrint != prevPrint)
+    toPrint += "-E";
+    if (currentTime - timeSend > sendDebounce)
     {
       timeSend = millis();
       Serial.println(toPrint);
@@ -229,4 +237,14 @@ void printHex(byte *buffer, byte bufferSize) {
     Serial.print(buffer[i], HEX);
   }
 }
-  
+void reset()
+{
+  sendData = false;
+  pressureData = 23.3;
+  rotData = 67.0;
+  toPrint = "Temp";
+  prevPrint = "";
+  rfidData = "";  
+  temp = "";
+  Serial.println("Reset");
+}

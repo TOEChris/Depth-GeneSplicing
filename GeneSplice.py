@@ -89,23 +89,36 @@ kv = '''
                 size: 5, self.height - 50
                 pos: self.width/6 *5, self.y + 25
             Color:
+                group: 'coverColor'
                 rgba: 0,0,0,1
             Rectangle:
                 group:'cover'
                 size: self.width/6-5, self.height-50
                 pos: self.width/6+5, self.y+25
+            Color:
+                group: 'coverColor'
+                rgba: 0,0,0,1
             Rectangle:
                 group:'cover'
                 size: self.width/6-5, self.height-50
                 pos: self.width/6*2+5, self.y+25
+            Color:
+                group: 'coverColor'
+                rgba: 0,0,0,1
             Rectangle:
-                group:'cover'
+                group: 'cover'
                 size: self.width/6-5, self.height-50
                 pos: self.width/6*3+5, self.y+25
+            Color:
+                group: 'coverColor'
+                rgba: 0,0,0,1
             Rectangle:
                 group:'cover'
                 size: self.width/6-5, self.height-50
                 pos: self.width/6*4+5, self.y+25
+            Color:
+                group: 'coverColor'
+                rgba: 0,0,0,1
             Rectangle:
                 group:'cover'
                 size: self.width/6-40, self.height-50
@@ -330,15 +343,15 @@ class Cata(FloatLayout):
     def __init__(self, **kwargs):
         super(Cata, self).__init__(**kwargs)
         self.app = App.get_running_app()
-        Logger.info([self.meshBotCollide])
+        
     def update_points(self, *args):
         app = self.app
         temp = []
         temp.append(self.points.pop())
         temp.append(self.points.pop())
         if ((float(temp[1]), float(temp[0])) in self.meshBotCollide or (float(temp[1]), float(temp[0])) in self.meshTopCollide):
-            pass
-            #Clock.unschedule(self.update)
+            app.reset()
+            return
         #timer data, proportion of distance crossed
         if (not self.endPuzzle):
             timerData = ((self.nextPoint - round(temp[1],1))) / ((self.nextPoint - self.prevPoint) / 10)
@@ -433,13 +446,16 @@ class GenLabel(Label):
         super(GenLabel, self).__init__(**kwargs)
         
 class SpliceApp(App):
+    prevData = ""
     def __init__(self, **kwargs):
         self.serRead = Clock.schedule_interval(self.serialRead, 0.20)
         super(SpliceApp, self).__init__(**kwargs)
         
     def serialRead(self, *args):
         data = self.getLatestStatus()
-        Logger.info(data)
+        if (not data or data == self.prevData):
+            return
+        self.prevData = data
         while(len(data) >= 2):
             if (data[0] == 'P'):
                 try:
@@ -471,7 +487,7 @@ class SpliceApp(App):
             cata.prevPoint = 321
             cata.nextPoint = 640
             cata.crossed[0] = True
-            cata.canvas.remove(cata.canvas.get_group('cover')[0])
+            cata.canvas.get_group("coverColor")[0].rgba = [0,0,0,0]
             self.instance.children[1].ids.statusText.text = 'STAGE 2 OF 6'
             self.instance.children[0].ids.temperature.generateTarget()
             self.instance.children[0].ids.pressure.generateTarget("range")
@@ -480,7 +496,7 @@ class SpliceApp(App):
             cata.prevPoint = 640
             cata.nextPoint = 959
             cata.crossed[1] = True
-            cata.canvas.remove(cata.canvas.get_group('cover')[0])
+            cata.canvas.get_group("coverColor")[1].rgba = [0,0,0,0]
             self.instance.children[1].ids.statusText.text = 'STAGE 3 OF 6'
             self.instance.children[0].ids.temperature.generateTarget()
             self.instance.children[0].ids.pressure.generateTarget("range")
@@ -489,7 +505,7 @@ class SpliceApp(App):
             cata.prevPoint = 959
             cata.nextPoint = 1280
             cata.crossed[2] = True
-            cata.canvas.remove(cata.canvas.get_group('cover')[0])
+            cata.canvas.get_group("coverColor")[2].rgba = [0,0,0,0]
             self.instance.children[1].ids.statusText.text = 'STAGE 4 OF 6'
             self.instance.children[0].ids.temperature.generateTarget()
             self.instance.children[0].ids.pressure.generateTarget("range")
@@ -498,7 +514,7 @@ class SpliceApp(App):
             cata.prevPoint = 1280
             cata.nextPoint = 1600
             cata.crossed[3] = True
-            cata.canvas.remove(cata.canvas.get_group('cover')[0])
+            cata.canvas.get_group("coverColor")[3].rgba = [0,0,0,0]
             self.instance.children[1].ids.statusText.text = 'STAGE 5 OF 6'
             self.instance.children[0].ids.temperature.generateTarget()
             self.instance.children[0].ids.pressure.generateTarget("range")
@@ -507,8 +523,7 @@ class SpliceApp(App):
             cata.prevPoint = 1600
             cata.nextPoint = 1892
             cata.crossed[4] = True
-            cata.canvas.remove(cata.canvas.get_group('cover')[0])
-            cata.canvas.remove(cata.canvas.get_group('cover')[0])
+            cata.canvas.get_group("coverColor")[4].rgba = [0,0,0,0]
             self.instance.children[1].ids.statusText.text = 'STAGE 6 OF 6'
             self.instance.children[0].ids.temperature.generateTarget()
             self.instance.children[0].ids.pressure.generateTarget("range")
@@ -520,23 +535,38 @@ class SpliceApp(App):
        
     def build(self):
         self.instance = Base()
-        #indicates to Arduino to start sending data
-        #ser.write(b'Z\r\n')
         return self.instance
 
     def getLatestStatus(self, *args):
         valid = False
-        while not valid:
+        status = sio.readline()
+        while ser.inWaiting() > 0:
             status = sio.readline()
-            while ser.inWaiting() > 0:
-                status = sio.readline()
-            status = status.split('-')
-            if (len(status) == 0):
-                valid = True
-            elif (('S' in status) or ('\n' in status[-1])):
-                valid = True
+        status = status.split('-')
+        if (len(status) == 0):
+            valid = True
+        elif (('S' in status) or ('E' in status[-1])):
+            valid = True
+        else:
+            return False
         return status
+    def reset(self, *args):
+        #reset points, clear line
+        self.instance.children[1].ids.catalyst.points.clear()
+        self.instance.children[1].ids.catalyst.points = [28,850,28,850]
 
+        self.instance.children[1].ids.timerData.color = (0,0,0)
+        self.instance.children[1].ids.timerData.text = "10.0"
+        Clock.unschedule(self.update)
+        #serial commune stopped
+        ser.write(b'R\r\n')
+        #reset individual component labels
+        #self.instance.
+        temp = self.instance.children[0].ids.temperature
+        pres = self.instance.children[0].ids.pressure
+        volt = self.instance.children[0].ids.voltage
+        #temp.ids.
+        #reset cata covers
 def serverRun(server_class=Server, handler_class=Handler, port=80):
     server_address = ('10.24.7.15', port)
     httpd = server_class(server_address, handler_class)
