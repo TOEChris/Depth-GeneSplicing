@@ -89,13 +89,16 @@ void loop() {
     if(digitalRead(startPin) == LOW)
     {
       sendData = true;
-      Serial.print("S-True-");
+      for (int i=0; i < 2; i++)
+      {
+        Serial.println("S-W-True-E");
+      }
     }
   }
   else
   {
     prevPrint = toPrint;
-    toPrint = "";
+    toPrint = "S-";
     currentTime = millis();
     if (digitalRead(tempPlus5Pin) == LOW && currentTime - timeTempPlus5 > compDebounce)
     {

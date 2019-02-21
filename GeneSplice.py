@@ -288,7 +288,8 @@ Builder.load_string(kv)
 file = open("results.txt","w")
 port = '/dev/ttyACM0'
 ser = serial.Serial(port, baudrate=9600, timeout = 0);
-sio = io.TextIOWrapper(io.BufferedRWPair(ser,ser), newline='\n')
+ser.flush()
+sio = io.TextIOWrapper(io.BufferedRWPair(ser,ser), newline='\r\n', encoding = 'utf-8')
 
 #needed to give enough time for the port to initiate
 time.sleep(3)
@@ -322,7 +323,6 @@ def buttonTrig():
 
 class Cata(FloatLayout):
     endPuzzle = False
-    startTime = 0
     gravity = 0.05
     velocity = 0
     accel = 0
@@ -447,15 +447,18 @@ class GenLabel(Label):
         
 class SpliceApp(App):
     prevData = ""
+    started = False
     def __init__(self, **kwargs):
         self.serRead = Clock.schedule_interval(self.serialRead, 0.20)
         super(SpliceApp, self).__init__(**kwargs)
         
     def serialRead(self, *args):
         data = self.getLatestStatus()
-        if (not data or data == self.prevData):
+        if (not data):
             return
         self.prevData = data
+        del data[0]
+        del data[-1]
         while(len(data) >= 2):
             if (data[0] == 'P'):
                 try:
@@ -463,8 +466,9 @@ class SpliceApp(App):
                     self.instance.children[0].ids.tempInfo.text = textToSet
                 except ValueError:
                     pass
-            elif(data[0] == 'S'):
+            elif(data[0] == 'W' and not self.started):
                 if (str(data[1]) == 'True'):
+                    self.started = True
                     self.buttonThread = threading.Thread(target = buttonTrig).start()
                     self.update = Clock.schedule_interval(self.instance.children[1].ids.catalyst.update_points, .016)
                     self.instance.children[0].ids.temperature.generateTarget()
@@ -542,21 +546,34 @@ class SpliceApp(App):
         status = sio.readline()
         while ser.inWaiting() > 0:
             status = sio.readline()
+            if('W' in status and not self.started):
+                status = "S-W-True-E"
+                return status.split('-')
         status = status.split('-')
         if (len(status) == 0):
             valid = True
-        elif (('S' in status) or ('E' in status[-1])):
+        elif (('W' in status) or ('E' in status[-1] and 'S' in status[0])):
             valid = True
         else:
             return False
         return status
     def reset(self, *args):
-        #reset points, clear line
+        #reset points, clear line, reset data
+        self.started = False
         self.instance.children[1].ids.catalyst.points.clear()
         self.instance.children[1].ids.catalyst.points = [28,850,28,850]
-
-        self.instance.children[1].ids.timerData.color = (0,0,0)
+        
+        self.instance.children[1].ids.timerData.color = (1,1,1)
         self.instance.children[1].ids.timerData.text = "10.0"
+
+        self.gravity = 0.05
+        self.velocity = 0
+        self.accel = 0
+        self.accelChange = True
+        self.nextPoint = 321
+        self.prevPoint = 28
+        self.prevData = ""
+        #unschedule update
         Clock.unschedule(self.update)
         #serial commune stopped
         ser.write(b'R\r\n')
