@@ -4,7 +4,6 @@ from kivy.logger import Logger
 from kivy.properties import OptionProperty, NumericProperty, ListProperty, BooleanProperty
 from kivy.garden.collider import Collide2DPoly
 
-from kivy.config import Config
 from kivy.core.window import Window
 from kivy.graphics import Rectangle, RoundedRectangle, Color, Line, Quad, Mesh
 from kivy.clock import Clock
@@ -15,8 +14,6 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.widget import Widget
 from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.uix.scatter import Scatter
 
 import time
 import random
@@ -560,19 +557,24 @@ class SpliceApp(App):
     def reset(self, *args):
         #reset points, clear line, reset data
         self.started = False
-        self.instance.children[1].ids.catalyst.points.clear()
-        self.instance.children[1].ids.catalyst.points = [28,850,28,850]
+        self.prevData = ""
+        cata = self.instance.children[1].ids.catalyst
+        cata.points.clear()
+        cata.points = [28,850,28,850]
         
         self.instance.children[1].ids.timerData.color = (1,1,1)
         self.instance.children[1].ids.timerData.text = "10.0"
-
-        self.gravity = 0.05
-        self.velocity = 0
-        self.accel = 0
-        self.accelChange = True
-        self.nextPoint = 321
-        self.prevPoint = 28
-        self.prevData = ""
+        
+        cata.gravity = 0.05
+        cata.velocity = 0
+        cata.accel = 0
+        cata.accelChange = True
+        cata.nextPoint = 321
+        cata.prevPoint = 28
+        cata.crossed = [False, False, False, False, False]
+        for x in cata.canvas.get_group('coverColor'):
+            x.rgba = 0,0,0,1
+        
         #unschedule update
         Clock.unschedule(self.update)
         #serial commune stopped
