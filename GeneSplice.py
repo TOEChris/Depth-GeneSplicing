@@ -17,19 +17,13 @@ from kivy.uix.label import Label
 
 import time
 import random
-import wiringpi
 import serial
 import io
-import gaugette.gpio
-import gaugette.switch as CS
 from functools import partial
 import threading
 
 from http.server import HTTPServer, BaseHTTPRequestHandler, SimpleHTTPRequestHandler
 import socketserver
-
-gpio = gaugette.gpio.GPIO()
-cataButton = CS.Switch(gpio, 0)
 
 kv = '''
 <Base>
@@ -282,11 +276,14 @@ kv = '''
 '''
 
 Builder.load_string(kv)
-file = open("results.txt","w")
-port = '/dev/ttyACM0'
-ser = serial.Serial(port, baudrate=9600, timeout = 0);
-ser.flush()
-sio = io.TextIOWrapper(io.BufferedRWPair(ser,ser), newline='\r\n', encoding = 'utf-8')
+portCom = 'COM3'
+portBut = 'COM4'
+serCom = serial.Serial(portCom, baudrate=9600, timeout = 0)
+serBut = serial.Serial(portBut, baudrate = 19200, timeout = 0)
+serCom.flush()
+serBut.flush()
+sioCom = io.TextIOWrapper(io.BufferedRWPair(serCom,serCom), newline='\r\n', encoding = 'utf-8')
+sioBut = io.TextIOWrapper(io.BufferedRWPair(serBut,serBut), newline='\r\n', encoding = 'utf-8')
 
 #needed to give enough time for the port to initiate
 time.sleep(3)
@@ -310,9 +307,9 @@ class Server(socketserver.ThreadingMixIn, HTTPServer):
             self.handle_request()
 
 def buttonTrig():
-    counter = 0
     app = App.get_running_app()
     while True:
+        serBut
         if (cataButton.get_state()):
             app.instance.children[1].ids.catalyst.jump()
             while cataButton.get_state():
@@ -354,10 +351,10 @@ class Cata(FloatLayout):
             timerData = ((self.nextPoint - round(temp[1],1))) / ((self.nextPoint - self.prevPoint) / 10)
             app.root.children[1].ids.timerData.text = ('%.2f' % round(timerData,2))
             if (timerData < 3):
-                app.root.children[1].ids.timerData.color = (1,0,0)
+                app.root.children[1].ids.timerData.color = (1,0,0,1)
                 app.stageCheck(temp[1])
             else:
-                app.root.children[1].ids.timerData.color = (1,1,1)
+                app.root.children[1].ids.timerData.color = (1,1,1,1)
                     
         self.accelChange = False
         #acceleration per height region
@@ -540,9 +537,9 @@ class SpliceApp(App):
 
     def getLatestStatus(self, *args):
         valid = False
-        status = sio.readline()
-        while ser.inWaiting() > 0:
-            status = sio.readline()
+        status = sioCom.readline()
+        while serCom.inWaiting() > 0:
+            status = sioCom.readline()
             if('W' in status and not self.started):
                 status = "S-W-True-E"
                 return status.split('-')
@@ -554,6 +551,7 @@ class SpliceApp(App):
         else:
             return False
         return status
+    
     def reset(self, *args):
         #reset points, clear line, reset data
         self.started = False
@@ -562,7 +560,7 @@ class SpliceApp(App):
         cata.points.clear()
         cata.points = [28,850,28,850]
         
-        self.instance.children[1].ids.timerData.color = (1,1,1)
+        self.instance.children[1].ids.timerData.color = (1,1,1,1)
         self.instance.children[1].ids.timerData.text = "10.0"
         
         cata.gravity = 0.05
@@ -578,7 +576,7 @@ class SpliceApp(App):
         #unschedule update
         Clock.unschedule(self.update)
         #serial commune stopped
-        ser.write(b'R\r\n')
+        serCom.write(b'R\r\n')
         #reset individual component labels
         #self.instance.
         temp = self.instance.children[0].ids.temperature
@@ -587,12 +585,12 @@ class SpliceApp(App):
         #temp.ids.
         #reset cata covers
 def serverRun(server_class=Server, handler_class=Handler, port=80):
-    server_address = ('10.24.7.15', port)
+    server_address = ('10.24.7.62', port)
     httpd = server_class(server_address, handler_class)
     print("serving at port",port)
     t = threading.Thread(target = httpd.process_requests)
     t.start()
     
 if __name__ == '__main__':
-    #serverRun()
+    serverRun()
     SpliceApp().run()
