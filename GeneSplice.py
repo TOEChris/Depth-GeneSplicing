@@ -309,11 +309,9 @@ class Server(socketserver.ThreadingMixIn, HTTPServer):
 def buttonTrig():
     app = App.get_running_app()
     while True:
-        serBut
-        if (cataButton.get_state()):
+        status = sioBut.readline()
+        if ('1' in status):
             app.instance.children[1].ids.catalyst.jump()
-            while cataButton.get_state():
-                pass
 
 class Cata(FloatLayout):
     endPuzzle = False
@@ -371,9 +369,9 @@ class Cata(FloatLayout):
         self.accelChange = True
         #constant x movement for different sections. first and last are smaller than the rest
         if (not self.crossed[0]):
-            temp[1] += .54 #.5125
+            temp[1] += .81 #.54
         elif (not self.crossed[4]):
-            temp[1] += .54 #.54 .5316
+            temp[1] += .81 #.54 .5316
         elif (self.crossed[0] and self.crossed[4]):
             temp[1] += .5 #.4883
         

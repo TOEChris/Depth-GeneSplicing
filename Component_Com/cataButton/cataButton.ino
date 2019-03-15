@@ -10,8 +10,7 @@ void loop() {
   // put your main code here, to run repeatedly:
   if (digitalRead(cataButtonPin) == HIGH)
   {
-    Serial.println(String(millis()));
-    
+    Serial.println(String(1));
   }
   while(digitalRead(cataButtonPin) == HIGH)
   {
