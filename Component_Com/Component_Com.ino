@@ -51,8 +51,11 @@ long timeSend = 0;
 const int sendDebounce = 40;
 const int compDebounce = 500;
 float currentTime = 0;
-//String buffer
-char strBuff[10];
+//String buffers
+byte recBuff[10];
+int recBuffIndex = 0;
+byte strBuff[10];
+
 String temp;
 void setup() {
   // put your setup code here, to run once:
@@ -89,9 +92,22 @@ void loop() {
     if(digitalRead(startPin) == LOW)
     {
       sendData = true;
-      for (int i=0; i < 2; i++)
+      bool received = false;
+      Serial.println("S-W-True-E");
+      while (received == false)
       {
-        Serial.println("S-W-True-E");
+        recBuffIndex = 0;
+        memset(recBuff, 0, sizeof(recBuff));
+        recBuff[0] = Serial.read();
+        
+        if (recBuff[0] == 'K')
+        {
+          received = true;
+        }
+        else
+        {
+          Serial.println("S-W-True-E");
+        }
       }
     }
   }

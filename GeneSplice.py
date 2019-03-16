@@ -321,11 +321,12 @@ class Cata(FloatLayout):
     accelChange = True
     close = BooleanProperty(False)
     points = ListProperty([28,850,28,850])
-    meshPointsBot = [50,655,0,0, 321,875,0,0, 640,850,0,0, 960,950,0,0, 1280,975,0,0, 1600,800,0,0, 1895,700,0,0, 1895,655,0,0]
+    meshPointsBot = [50,655,0,0, 321,875,0,0, 640,850,0,0, 960,950,0,0, 1280,950,0,0, 1600,800,0,0, 1895,700,0,0, 1895,655,0,0]
     meshBotCollide = Collide2DPoly([float(x) for x in meshPointsBot if x != 0], cache=True)
     meshIndBot = [0,1,2,3,4,5,6,7]
     meshPointsTop = [50,1055,0,0, 321,955,0,0, 640,955,0,0, 960,1000,0,0, 1280,1030,0,0, 1600,975,0,0, 1895,750,0,0, 1895,1055,0,0, 960,1055,0,0, 640,1055,0,0]
-    meshTopCollide = Collide2DPoly([float(x) for x in meshPointsTop if x != 0], cache=True)
+    meshTopCollide = Collide2DPoly([50,1055, 321,955, 640,955, 960,1000, 1005,1000, 1380,985, 1895,750, 1895,1055, 50,1055])
+    #meshTopCollide = Collide2DPoly([float(x) for x in meshPointsTop if x != 0], cache=True)
     meshIndTop = [0,1,2,3,4,5,6,7,5,8,9,1,7,0]
     counter = 0
     crossed = [False, False, False, False, False]
@@ -373,7 +374,7 @@ class Cata(FloatLayout):
         elif (not self.crossed[4]):
             temp[1] += .81 #.54 .5316
         elif (self.crossed[0] and self.crossed[4]):
-            temp[1] += .5 #.4883
+            temp[1] += .81 #.4883
         
         self.points.append(temp[1])
         temp[0] -= self.velocity
@@ -383,7 +384,6 @@ class Cata(FloatLayout):
             temp[0] = 660
         temp[0] = round(temp[0], 1)
         self.points.append(temp[0])
-        
         
         if (self.velocity > 0):
             self.velocity = 0
@@ -431,6 +431,10 @@ class Div(Widget):
 class Base(GridLayout):
     def __init__(self, **kwargs):
         super(Base, self).__init__(**kwargs)
+
+    def on_touch_down(self, touch):
+        print(touch.pos)
+        
 class GenLabel(Label):
     def __init__(self, **kwargs):
         self.font_name = 'ColdWarm.otf'
@@ -538,8 +542,9 @@ class SpliceApp(App):
         status = sioCom.readline()
         while serCom.inWaiting() > 0:
             status = sioCom.readline()
-            if('W' in status and not self.started):
+        if('W' in status and not self.started):
                 status = "S-W-True-E"
+                serCom.write(b'K\r\n')
                 return status.split('-')
         status = status.split('-')
         if (len(status) == 0):
