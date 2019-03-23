@@ -25,8 +25,7 @@ byte trailerBlock   = 7;
 MFRC522::StatusCode status;
 byte buffer[18];
 byte size = sizeof(buffer);
-
-bool sendData = false;
+bool started = false;
 
 //String to serial print for parsing
 String toPrint = "Temp";
@@ -39,17 +38,19 @@ const int rotBPin = 3;
 const int tempPlus5Pin = 33;
 const int tempPlus1Pin = 35;
 const int startPin = 23;
+const int voltPins[] = {24, 26, 28, 30, 32, 34, 36, 38};
 
 //data and debounce times
-double pressureData = 23.3;
-double rotData = 67.0;
+double pressureData = 0;
+double rotData = 0;
+int voltData = 0;
 int rotAState;
 int lastRotAState;
 long timeTempPlus5 = 0;
 long timeTempPlus1 = 0;
 long timeSend = 0;
 const int sendDebounce = 40;
-const int compDebounce = 500;
+const int compDebounce = 350;
 float currentTime = 0;
 //String buffers
 byte recBuff[10];
@@ -66,6 +67,11 @@ void setup() {
   lastRotAState = digitalRead(rotAPin);
   pinMode(rotBPin, INPUT);
   pinMode(startPin, INPUT_PULLUP);
+  for (int i=0; i < 8; i++)
+  {
+    pinMode(voltPins[i], INPUT_PULLUP);
+    digitalWrite(voltPins[i], LOW);
+  }
   
   while (!Serial);    // Do nothing if no serial port is opened (added for Arduinos based on ATMEGA32U4)
   SPI.begin();      // Init SPI bus
@@ -87,11 +93,10 @@ void loop() {
       reset();
     }
   }
-  if (!sendData)
+  if (!started)
   {
     if(digitalRead(startPin) == LOW)
     {
-      sendData = true;
       bool received = false;
       Serial.println("S-W-True-E");
       while (received == false)
@@ -103,6 +108,7 @@ void loop() {
         if (recBuff[0] == 'K')
         {
           received = true;
+          started = true;
         }
         else
         {
@@ -111,8 +117,7 @@ void loop() {
       }
     }
   }
-  else
-  {
+    voltData = 0;
     prevPrint = toPrint;
     toPrint = "S-";
     currentTime = millis();
@@ -136,18 +141,29 @@ void loop() {
     {
       if (digitalRead(rotBPin) != rotAState)
       {
-        rotData += 0.5;
+        rotData += 0.025;
       }
       else
       {
-        if (!(rotData <= 0))
-          rotData -= 0.5;
+        rotData -= 0.025;
+        if (rotData <= 0)
+          rotData = 0;
       }
       lastRotAState = rotAState;  
     }
-    dtostrf(rotData, 10, 1, strBuff);
+    dtostrf(rotData, 10, 3, strBuff);
     temp = strBuff;
-    toPrint += "R-" + temp;
+    toPrint += "R-" + temp + "-";
+
+    for (int i=0; i < 8; i++)
+    {
+      if (digitalRead(voltPins[i]) == HIGH)
+        voltData += ceil(pow(2, i));
+    }
+
+    itoa(voltData, strBuff, 10);
+    temp = strBuff;
+    toPrint += "V-" + String(temp);
     /*
     else if (digitalRead(CPin) == HIGH  && millis() - timeC > debounce)
     {
@@ -198,8 +214,6 @@ void loop() {
       timeSend = millis();
       Serial.println(toPrint);
     }
-  }
- 
 }
 
 void rfidCheck(){
@@ -258,9 +272,9 @@ void printHex(byte *buffer, byte bufferSize) {
 }
 void reset()
 {
-  sendData = false;
-  pressureData = 23.3;
-  rotData = 67.0;
+  started = false;
+  pressureData = 0;
+  rotData = 0;
   toPrint = "Temp";
   prevPrint = "";
   rfidData = "";  

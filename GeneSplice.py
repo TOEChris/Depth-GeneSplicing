@@ -1,3 +1,4 @@
+import kivy
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
@@ -14,6 +15,7 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.widget import Widget
 from kivy.uix.label import Label
+from kivy.uix.effectwidget import *
 
 import time
 import random
@@ -140,7 +142,7 @@ kv = '''
         GenLabel:
             font_size: 56
             id: statusText
-            text: 'STAGE 1 OF 6'
+            text: 'Components Needed...'
             pos: status.x + status.width/6, status.y
 
         GenLabel:
@@ -150,7 +152,7 @@ kv = '''
             
         GenLabel:
             id: timerData
-            text: '10.0'
+            text: '-'
             pos: status.x + status.width/4 *3 + 200, status.y
             
         GenLabel:
@@ -197,7 +199,7 @@ kv = '''
         GenLabel:
             id: targetData
             pos: temperature.width/1.75, temperature.height/2
-            text: '-'
+            text: '100 C'
     Div:
         id: pressure
         size: root.size
@@ -229,12 +231,12 @@ kv = '''
             text: 'Waiting...'
         GenLabel:
             id: targetLabel
-            pos: 850, root.height/2
+            pos: 800, root.height/2
             text: 'Target:'
         GenLabel:
             id: targetData
-            pos: 1025, root.height/2
-            text: '-'
+            pos: 995, root.height/2
+            text: '9.17 Atm'
                 
     Div:
         id: voltage
@@ -272,7 +274,7 @@ kv = '''
         GenLabel:
             id: targetData
             pos: 1650, root.height/2
-            text: '-'
+            text: '32V'
 '''
 
 Builder.load_string(kv)
@@ -314,11 +316,10 @@ def buttonTrig():
             app.instance.children[1].ids.catalyst.jump()
 
 class Cata(FloatLayout):
-    endPuzzle = False
+    puzzleSolved = False
     gravity = 0.05
     velocity = 0
     accel = 0
-    accelChange = True
     close = BooleanProperty(False)
     points = ListProperty([28,850,28,850])
     meshPointsBot = [50,655,0,0, 321,875,0,0, 640,850,0,0, 960,950,0,0, 1280,950,0,0, 1600,800,0,0, 1895,700,0,0, 1895,655,0,0]
@@ -326,7 +327,6 @@ class Cata(FloatLayout):
     meshIndBot = [0,1,2,3,4,5,6,7]
     meshPointsTop = [50,1055,0,0, 321,955,0,0, 640,955,0,0, 960,1000,0,0, 1280,1030,0,0, 1600,975,0,0, 1895,750,0,0, 1895,1055,0,0, 960,1055,0,0, 640,1055,0,0]
     meshTopCollide = Collide2DPoly([50,1055, 321,955, 640,955, 960,1000, 1005,1000, 1380,985, 1895,750, 1895,1055, 50,1055])
-    #meshTopCollide = Collide2DPoly([float(x) for x in meshPointsTop if x != 0], cache=True)
     meshIndTop = [0,1,2,3,4,5,6,7,5,8,9,1,7,0]
     counter = 0
     crossed = [False, False, False, False, False]
@@ -342,20 +342,20 @@ class Cata(FloatLayout):
         temp = []
         temp.append(self.points.pop())
         temp.append(self.points.pop())
-        if ((float(temp[1]), float(temp[0])) in self.meshBotCollide or (float(temp[1]), float(temp[0])) in self.meshTopCollide):
-            app.reset()
-            return
-        #timer data, proportion of distance crossed
-        if (not self.endPuzzle):
-            timerData = ((self.nextPoint - round(temp[1],1))) / ((self.nextPoint - self.prevPoint) / 10)
-            app.root.children[1].ids.timerData.text = ('%.2f' % round(timerData,2))
-            if (timerData < 3):
-                app.root.children[1].ids.timerData.color = (1,0,0,1)
-                app.stageCheck(temp[1])
-            else:
-                app.root.children[1].ids.timerData.color = (1,1,1,1)
+        if (app.started):
+            if ((float(temp[1]), float(temp[0])) in self.meshBotCollide or (float(temp[1]), float(temp[0])) in self.meshTopCollide):
+                app.reset()
+                return
+            #timer data, proportion of distance crossed
+            if (not self.puzzleSolved):
+                timerData = ((self.nextPoint - round(temp[1],1))) / ((self.nextPoint - self.prevPoint) / 10)
+                app.root.children[1].ids.timerData.text = ('%.2f' % round(timerData,2))
+                if (timerData < 3):
+                    app.root.children[1].ids.timerData.color = (1,0,0,1)
+                    app.stageCheck(temp[1])
+                else:
+                    app.root.children[1].ids.timerData.color = (1,1,1,1)
                     
-        self.accelChange = False
         #acceleration per height region
         self.accel += self.gravity
         toCheck = self.accel
@@ -367,15 +367,18 @@ class Cata(FloatLayout):
             self.accel = 0.5
 
         self.velocity += self.accel
-        self.accelChange = True
-        #constant x movement for different sections. first and last are smaller than the rest
-        if (not self.crossed[0]):
-            temp[1] += .81 #.54
-        elif (not self.crossed[4]):
-            temp[1] += .81 #.54 .5316
-        elif (self.crossed[0] and self.crossed[4]):
-            temp[1] += .81 #.4883
-        
+
+        if (app.started):
+            ######
+            #constant x movement for different sections. first and last are smaller than the rest
+            if (not self.crossed[0]):
+                temp[1] += .81 #.54
+            elif (not self.crossed[4]):
+                temp[1] += .81 #.54 .5316
+            elif (self.crossed[0] and self.crossed[4]):
+                temp[1] += .81 #.4883
+            ######
+
         self.points.append(temp[1])
         temp[0] -= self.velocity
         if (temp[0] > 1050):
@@ -387,25 +390,26 @@ class Cata(FloatLayout):
         
         if (self.velocity > 0):
             self.velocity = 0
-
-        if (self.counter == 20):
-            self.points.append(temp[1])
-            self.points.append(temp[0])
-            self.counter = 0
-        else:
-            self.counter += 1
+        
+        if (app.started):
+            ######
+            if (self.counter == 20):
+                self.points.append(temp[1])
+                self.points.append(temp[0])
+                self.counter = 0
+            else:
+                self.counter += 1
+            ######
             
     def jump(self, *args):
-        if (not self.accelChange):
-            return
         currentAccel = self.accel
         toCheck = self.points[-1]
-        if (toCheck > 975 and not currentAccel == -0.3):
-            self.accel = -0.3
-        elif(toCheck > 860 and not currentAccel == -0.35) :
+        if (toCheck > 975 and not currentAccel == -0.21):
+            self.accel = -0.21
+        elif(toCheck > 860 and not currentAccel == -0.25) :
+            self.accel = -0.25
+        elif(toCheck > 800 and not currentAccel == -0.35):
             self.accel = -0.35
-        elif(toCheck > 800 and not currentAccel == -0.4):
-            self.accel = -0.4
         elif(not currentAccel == -0.5):
             self.accel = -0.5
 class Top(GridLayout):
@@ -444,8 +448,16 @@ class GenLabel(Label):
 class SpliceApp(App):
     prevData = ""
     started = False
+    wonLabel = InstructionGroup()
+    tempTargets = [100, 152, 405, 385, 275, 36]
+    voltTargets = [32, 7, 24, 228, 255, 4]
+    presTargets = [9.17, 8.65, 7.21, 7., 2.07, 2.35]
+    tempCurrent = 0
+    voltCurrent = 0
+    presCurrent = 0
+
     def __init__(self, **kwargs):
-        self.serRead = Clock.schedule_interval(self.serialRead, 0.20)
+        self.serRead = Clock.schedule_interval(self.serialRead, 0.05)
         super(SpliceApp, self).__init__(**kwargs)
         
     def serialRead(self, *args):
@@ -457,84 +469,90 @@ class SpliceApp(App):
         del data[-1]
         while(len(data) >= 2):
             if (data[0] == 'P'):
-                try:
-                    textToSet = str(round(float(data[1]), 2))
-                    self.instance.children[0].ids.tempInfo.text = textToSet
-                except ValueError:
-                    pass
+                textToSet = str(round(float(data[1]), 2))
+                self.instance.children[0].ids.tempInfo.text = textToSet
             elif(data[0] == 'W' and not self.started):
                 if (str(data[1]) == 'True'):
                     self.started = True
-                    self.buttonThread = threading.Thread(target = buttonTrig).start()
-                    self.update = Clock.schedule_interval(self.instance.children[1].ids.catalyst.update_points, .016)
-                    self.instance.children[0].ids.temperature.generateTarget()
-                    self.instance.children[0].ids.pressure.generateTarget("range")
-                    self.instance.children[0].ids.voltage.generateTarget() 
+                    #self.update = Clock.schedule_interval(self.instance.children[1].ids.catalyst.update_points, .016)
             elif(data[0] == 'R'):
-                try:
-                    if (float(data[1]) < 0):
-                        textToSet = "0"
-                    else:
-                        textToSet = str(round(float(data[1]), 2))
-                    self.instance.children[0].ids.pressInfo.text = textToSet
-                except Exception:
-                    pass
+                if (float(data[1]) < 0):
+                    textToSet = "0.000"
+                else:
+                    textToSet = str(float(data[1])).ljust(5, '0')
+                self.instance.children[0].ids.pressInfo.text = textToSet
+            elif(data[0] == 'V'):
+                textToSet = str(data[1])
+                self.instance.children[0].ids.voltInfo.text = textToSet
             del data[0:1]
     def stageCheck(self, *args):
         temp = args[0]
         cata = self.instance.children[1].ids.catalyst
+
         if (not cata.crossed[0] and temp >= 321):
             cata.prevPoint = 321
             cata.nextPoint = 640
             cata.crossed[0] = True
             cata.canvas.get_group("coverColor")[0].rgba = [0,0,0,0]
             self.instance.children[1].ids.statusText.text = 'STAGE 2 OF 6'
-            self.instance.children[0].ids.temperature.generateTarget()
-            self.instance.children[0].ids.pressure.generateTarget("range")
-            self.instance.children[0].ids.voltage.generateTarget() 
+            self.instance.children[0].ids.temperature.children[0].text = str(self.tempTargets[1]) + " C"
+            self.instance.children[0].ids.pressure.children[0].text = str(self.presTargets[1]) + " ATM"
+            self.instance.children[0].ids.voltage.children[0].text = str(self.voltTargets[1]) + "V"
         elif(not cata.crossed[1] and temp >= 640):
             cata.prevPoint = 640
             cata.nextPoint = 959
             cata.crossed[1] = True
             cata.canvas.get_group("coverColor")[1].rgba = [0,0,0,0]
             self.instance.children[1].ids.statusText.text = 'STAGE 3 OF 6'
-            self.instance.children[0].ids.temperature.generateTarget()
-            self.instance.children[0].ids.pressure.generateTarget("range")
-            self.instance.children[0].ids.voltage.generateTarget()
+            self.instance.children[0].ids.temperature.children[0].text = str(self.tempTargets[2]) + " C"
+            self.instance.children[0].ids.pressure.children[0].text = str(self.presTargets[2]) + " ATM"
+            self.instance.children[0].ids.voltage.children[0].text = str(self.voltTargets[2]) + "V"
         elif(not cata.crossed[2] and temp >= 959):
             cata.prevPoint = 959
             cata.nextPoint = 1280
             cata.crossed[2] = True
             cata.canvas.get_group("coverColor")[2].rgba = [0,0,0,0]
             self.instance.children[1].ids.statusText.text = 'STAGE 4 OF 6'
-            self.instance.children[0].ids.temperature.generateTarget()
-            self.instance.children[0].ids.pressure.generateTarget("range")
-            self.instance.children[0].ids.voltage.generateTarget()
+            self.instance.children[0].ids.temperature.children[0].text = str(self.tempTargets[3]) + " C"
+            self.instance.children[0].ids.pressure.children[0].text = str(self.presTargets[3]) + " ATM"
+            self.instance.children[0].ids.voltage.children[0].text = str(self.voltTargets[3]) + "V"
         elif(not cata.crossed[3] and temp >= 1280):
             cata.prevPoint = 1280
             cata.nextPoint = 1600
             cata.crossed[3] = True
             cata.canvas.get_group("coverColor")[3].rgba = [0,0,0,0]
             self.instance.children[1].ids.statusText.text = 'STAGE 5 OF 6'
-            self.instance.children[0].ids.temperature.generateTarget()
-            self.instance.children[0].ids.pressure.generateTarget("range")
-            self.instance.children[0].ids.voltage.generateTarget()
+            self.instance.children[0].ids.temperature.children[0].text = str(self.tempTargets[4]) + " C"
+            self.instance.children[0].ids.pressure.children[0].text = str(self.presTargets[4]) + " ATM"
+            self.instance.children[0].ids.voltage.children[0].text = str(self.voltTargets[4]) + "V"
         elif(not cata.crossed[4] and temp >= 1600):
             cata.prevPoint = 1600
             cata.nextPoint = 1892
             cata.crossed[4] = True
             cata.canvas.get_group("coverColor")[4].rgba = [0,0,0,0]
             self.instance.children[1].ids.statusText.text = 'STAGE 6 OF 6'
-            self.instance.children[0].ids.temperature.generateTarget()
-            self.instance.children[0].ids.pressure.generateTarget("range")
-            self.instance.children[0].ids.voltage.generateTarget()
+            self.instance.children[0].ids.temperature.children[0].text = str(self.tempTargets[5]) + " C"
+            self.instance.children[0].ids.pressure.children[0].text = str(self.presTargets[5]) + " ATM"
+            self.instance.children[0].ids.voltage.children[0].text = str(self.voltTargets[5]) + "V"
         elif(temp >= 1892):
-            cata.endPuzzle = True
+            cata.puzzleSolved = True
             self.instance.children[1].ids.timerData.text = ('%.2f' % 0.0)
             Clock.unschedule(self.update)
+            self.win()
        
     def build(self):
         self.instance = Base()
+        won = self.wonLabel
+        won.add(Color(0,0,0,1))
+        won.add(Rectangle(size=(1000, 190), pos= (400, 520)))
+        won.add(Color(0,1,0,1))
+        won.add(Rectangle(size=(980, 210), pos= (410, 530)))
+        won.add(Color(1,1,1,1))
+        label = CoreLabel(font_size=64, font_name='basica.ttf', text = 'SPLICING COMPLETE')
+        label.refresh()
+        won.add(Rectangle(texture=label.texture, size= label.size, pos=(475, 600)))
+        self.update = Clock.schedule_interval(self.instance.children[1].ids.catalyst.update_points, .016)
+        self.buttonThread = threading.Thread(target = buttonTrig).start()
         return self.instance
 
     def getLatestStatus(self, *args):
@@ -545,6 +563,7 @@ class SpliceApp(App):
         if('W' in status and not self.started):
                 status = "S-W-True-E"
                 serCom.write(b'K\r\n')
+                self.started = True
                 return status.split('-')
         status = status.split('-')
         if (len(status) == 0):
@@ -564,20 +583,19 @@ class SpliceApp(App):
         cata.points = [28,850,28,850]
         
         self.instance.children[1].ids.timerData.color = (1,1,1,1)
-        self.instance.children[1].ids.timerData.text = "10.0"
-        
+        self.instance.children[1].ids.timerData.text = "-"
+        self.instance.children[1].ids.statusText.text = 'STAGE 1 OF 6'
+
         cata.gravity = 0.05
         cata.velocity = 0
         cata.accel = 0
-        cata.accelChange = True
         cata.nextPoint = 321
         cata.prevPoint = 28
+        #reset cata covers
         cata.crossed = [False, False, False, False, False]
         for x in cata.canvas.get_group('coverColor'):
             x.rgba = 0,0,0,1
         
-        #unschedule update
-        Clock.unschedule(self.update)
         #serial commune stopped
         serCom.write(b'R\r\n')
         #reset individual component labels
@@ -585,8 +603,14 @@ class SpliceApp(App):
         temp = self.instance.children[0].ids.temperature
         pres = self.instance.children[0].ids.pressure
         volt = self.instance.children[0].ids.voltage
-        #temp.ids.
-        #reset cata covers
+        temp.children[0].text = str(self.tempTargets[0]) + " C"
+        pres.children[0].text = str(self.presTargets[0]) + " ATM"
+        volt.children[0].text = str(self.voltTargets[0]) + "V"
+
+        
+    def win(self, *args):
+        self.instance.canvas.add(self.wonLabel)
+
 def serverRun(server_class=Server, handler_class=Handler, port=80):
     server_address = ('10.24.7.62', port)
     httpd = server_class(server_address, handler_class)
