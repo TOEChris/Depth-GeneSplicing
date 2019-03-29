@@ -41,7 +41,7 @@ const int startPin = 23;
 const int voltPins[] = {24, 26, 28, 30, 32, 34, 36, 38};
 
 //data and debounce times
-double pressureData = 0;
+double tempData = 0;
 double rotData = 0;
 int voltData = 0;
 int rotAState;
@@ -49,6 +49,7 @@ int lastRotAState;
 long timeTempPlus5 = 0;
 long timeTempPlus1 = 0;
 long timeSend = 0;
+long timeSerial = 0;
 const int sendDebounce = 40;
 const int compDebounce = 350;
 float currentTime = 0;
@@ -123,18 +124,18 @@ void loop() {
     currentTime = millis();
     if (digitalRead(tempPlus5Pin) == LOW && currentTime - timeTempPlus5 > compDebounce)
     {
-      pressureData += 5;
+      tempData += 5;
       timeTempPlus5 = millis();
     }
 
     if (digitalRead(tempPlus1Pin) == LOW && currentTime - timeTempPlus1 > compDebounce)
     {
-      pressureData += 1;
+      tempData += 1;
       timeTempPlus1 = millis();
     }
-    dtostrf(pressureData, 10, 1, strBuff);
+    dtostrf(tempData, 10, 1, strBuff);
     temp = strBuff;
-    toPrint += "P-" + temp + "-";
+    toPrint += "T-" + temp + "-";
     
     rotAState = digitalRead(rotAPin);
     if (rotAState != lastRotAState)
@@ -273,7 +274,7 @@ void printHex(byte *buffer, byte bufferSize) {
 void reset()
 {
   started = false;
-  pressureData = 0;
+  tempData = 0;
   rotData = 0;
   toPrint = "Temp";
   prevPrint = "";
