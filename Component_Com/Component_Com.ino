@@ -4,28 +4,30 @@
 #define RST_PIN         9          // Configurable, see typical pin layout above
 #define SS_PIN          10       // Configurable, see typical pin layout above
 
-MFRC522 mfrc522(SS_PIN, RST_PIN);  // Create MFRC522 instance
+const byte numReaders = 4;
+const byte ssPins[numReaders] = {53, 47, 45, 43};
+const byte resetPin = 5;
+
+MFRC522 mfrc522[numReaders];
+
+String currentIDs[numReaders];
+
+String correctIDs[numReaders] = {"305c17a3", "ba9d18d3", "1474f1d5", "ecdcd183"}; //ala3d083
+String idStatus[numReaders] = {"N", "N", "N", "N"};
 
 MFRC522::MIFARE_Key key;
-byte valid[] = {0x14, 0x74, 0xF1, 0xD5};
-bool validate = true;
-bool there = false;
-bool check = false;
 
 //rfid data
 byte sector         = 1;
 byte blockAddr      = 4;
 byte dataBlock[]    = {
-    0x00, 0x00, 0x00, 0x00, //won value
-    0x00, 0x00, 0x00, 0x00, 
-    0x00, 0x00, 0xda, 0xdd, 
-    0xee, 0x00, 0x00, 0x00  
+    0xda, 0xdd, 0xee   //correct values for keg
 };
 byte trailerBlock   = 7;
 MFRC522::StatusCode status;
 byte buffer[18];
 byte size = sizeof(buffer);
-bool started = false;
+boolean started = false;
 
 //String to serial print for parsing
 String toPrint = "Temp";
@@ -53,9 +55,12 @@ long timeSerial = 0;
 const int sendDebounce = 40;
 const int compDebounce = 350;
 float currentTime = 0;
+boolean changedValue = false;
+boolean rfidCorrect = false;
+boolean kegComplete = false;
+
 //String buffers
 byte recBuff[10];
-int recBuffIndex = 0;
 byte strBuff[10];
 
 String temp;
@@ -76,24 +81,132 @@ void setup() {
   
   while (!Serial);    // Do nothing if no serial port is opened (added for Arduinos based on ATMEGA32U4)
   SPI.begin();      // Init SPI bus
-  //mfrc522.PCD_Init();   // Init MFRC522
-  //mfrc522.PCD_DumpVersionToSerial();  // Show details of PCD - MFRC522 Card Reader details
-  Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));
-  //for (byte i = 0; i < 6; i++) {
-  //      key.keyByte[i] = 0xFF;
-  //}
+  
+  for (byte i = 0; i < 6; i++) {
+        key.keyByte[i] = 0xFF;
+  }
+  
+  for (uint8_t i = 0; i < numReaders; i++) {
+    mfrc522[i].PCD_Init(ssPins[i], resetPin);
+    
+    #ifdef DEBUG
+    Serial.print(F("Reader #"));
+    Serial.print(i);
+    Serial.print(F(" initialised on pin "));
+    Serial.print(String(ssPins[i]));
+    Serial.print(F(". Antenna strength: "));
+    Serial.print(mfrc522[i].PCD_GetAntennaGain());
+    Serial.print(F(". Version : "));
+    mfrc522[i].PCD_DumpVersionToSerial();
+    #endif
+    
+    delay(100);
+  }
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   if (Serial.available())
   {
-    byte resetCheck = Serial.read();
-    if (resetCheck == 'R')
+    byte check = Serial.read();
+    if (check == 'R')
     {
-      reset();
+      fullReset();
+    }
+    if (check == 'S')
+    {
+      stageReset(); 
+    }
+    if (check == 'J')
+    {
+      rfidCorrect = true; 
     }
   }
+  if (!rfidCorrect)
+  {
+    String currentRFID = rfidCheck();
+    Serial.println(currentRFID);
+  }
+  else
+  {
+    geneScreen();
+  }
+}
+
+
+String rfidCheck() {
+  for (int i = 0; i < numReaders; i++) {
+    mfrc522[i].PCD_Init();
+    String readRFID = "";
+
+    if (mfrc522[i].PICC_IsNewCardPresent() && mfrc522[i].PICC_ReadCardSerial())
+      readRFID = dump_byte_array(mfrc522[i].uid.uidByte, mfrc522[i].uid.size);
+    else
+      idStatus[i] = "N";
+    // If the current reading is different from the last known reading
+    if (readRFID != currentIDs[i])
+      changedValue = true;
+
+    currentIDs[i] = readRFID;
+    if (currentIDs[i] == correctIDs[i]){
+      if (i == 2 && !kegComplete) //special validation for keg, need to read rfid data
+        kegComplete = validate(mfrc522[i]);
+      else
+        idStatus[i] = "Y"; //yes
+    }
+    else
+    {
+      if (i == 2)
+        kegComplete = false;
+      idStatus[i] = "N"; //no
+    }
+    mfrc522[i].PCD_AntennaOff();
+  }
+  
+  String rfidData = "S-C-";
+  for(int i = 0; i < numReaders; i++){
+    if(i == 2)
+    {
+      if(kegComplete)
+        idStatus[i] = "Y";
+      else if (currentIDs[i] == correctIDs[i])
+        idStatus[i] = "I";
+      else
+        idStatus[i] = "N";
+    }
+    rfidData += idStatus[i];
+  }
+  rfidData += "-E";
+  return rfidData;
+}
+
+boolean validate(MFRC522 reader)
+{
+  status = (MFRC522::StatusCode) reader.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(reader.uid));
+  if (status != MFRC522::STATUS_OK) {
+        Serial.print(F("PCD_Authenticate() failed: "));
+        Serial.println(reader.GetStatusCodeName(status));
+        status = (MFRC522::StatusCode) reader.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(reader.uid));
+  }
+  
+  reader.PICC_DumpMifareClassicSectorToSerial(&(reader.uid), &key, sector);
+  status = (MFRC522::StatusCode) reader.MIFARE_Read(blockAddr, buffer, &size);
+  if (status != MFRC522::STATUS_OK) {
+      Serial.print(F("MIFARE_Read() failed: "));
+      Serial.println(reader.GetStatusCodeName(status));
+  }
+  boolean result = true;
+  for (byte i = 10; i < 13; i++) {
+    if (buffer[i] != dataBlock[i-10])
+      result = false;
+    Serial.print(buffer[i], HEX); Serial.print(" "); Serial.print(dataBlock[i-10],HEX); Serial.print(" ");
+  }
+  Serial.println();
+  return result;
+}
+
+void geneScreen()
+{
   if (!started)
   {
     if(digitalRead(startPin) == LOW)
@@ -102,7 +215,6 @@ void loop() {
       Serial.println("S-W-True-E");
       while (received == false)
       {
-        recBuffIndex = 0;
         memset(recBuff, 0, sizeof(recBuff));
         recBuff[0] = Serial.read();
         
@@ -165,50 +277,7 @@ void loop() {
     itoa(voltData, strBuff, 10);
     temp = strBuff;
     toPrint += "V-" + String(temp);
-    /*
-    else if (digitalRead(CPin) == HIGH  && millis() - timeC > debounce)
-    {
-      toPrint += "C ";
-      timeC = millis();
-      sendData = true;
-    }
   
-    else if (digitalRead(GPin) == HIGH  && millis() - timeG > debounce)
-    {
-      toPrint += "G ";
-      timeG = millis();
-      sendData = true;
-    }
-  
-    else if (digitalRead(TPin) == HIGH  && millis() - timeT > debounce)
-    {
-      toPrint += "T ";
-      timeT = millis();
-      sendData = true;
-    }
-    
-    if (digitalRead(ConPin) == HIGH  && millis() - timeCon > debounce)
-    {
-      toPrint += "confirm ";
-      timeCon = millis();
-      sendData = true;
-    }
-  
-    if (digitalRead(BackPin) == HIGH  && millis() - timeBack > debounce)
-    {
-      toPrint += "back ";
-      timeBack = millis();
-      sendData = true;
-    }
-    
-    rfidCheck();
-    if (rfidData != "" and rfidData != prevCheck)
-    {
-      toPrint += rfidData;
-      prevCheck = rfidData;
-      sendData = true;
-    }
-    */
     toPrint += "-E";
     if (currentTime - timeSend > sendDebounce)
     {
@@ -217,53 +286,8 @@ void loop() {
     }
 }
 
-void rfidCheck(){
-    validate = true;
-    if (!mfrc522.PICC_IsNewCardPresent()) {
-      //timeRead = millis();
-      if (!there){
-          rfidData = "No Card ";
-          return;
-      }
-    } 
 
-    if ( ! mfrc522.PICC_ReadCardSerial()) 
-       there = false;
-    else
-       there = true;
 
-   
-    // Authenticate using key A
-    status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
-    if (status != MFRC522::STATUS_OK) {
-        //Serial.print(F("PCD_Authenticate() failed: "));
-        //Serial.println(mfrc522.GetStatusCodeName(status));
-        return;
-    }
-    // Authenticate using key B
-    status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_B, trailerBlock, &key, &(mfrc522.uid));
-    if (status != MFRC522::STATUS_OK) {
-        //Serial.print(F("PCD_Authenticate() failed: "));
-        //Serial.println(mfrc522.GetStatusCodeName(status));
-        return;
-    }
-    for (int i=0; i < 4; i++)
-    {
-       if (mfrc522.uid.uidByte[i] != valid[i])
-         validate = false;
-    }
-    
-    
-    if (validate)
-    {
-        rfidData = "Right ";
-    }
-
-    else if (!validate)
-    {
-        rfidData = "Wrong ";
-    }
-}
 
 void printHex(byte *buffer, byte bufferSize) {
   for (byte i = 0; i < bufferSize; i++) {
@@ -271,7 +295,17 @@ void printHex(byte *buffer, byte bufferSize) {
     Serial.print(buffer[i], HEX);
   }
 }
-void reset()
+
+
+String dump_byte_array(byte *buffer, byte bufferSize) {
+  String read_rfid = "";
+  for (byte i = 0; i < bufferSize; i++) {
+    read_rfid = read_rfid + String(buffer[i], HEX);
+  }
+  return read_rfid;
+}
+
+void stageReset()
 {
   started = false;
   tempData = 0;
@@ -280,5 +314,17 @@ void reset()
   prevPrint = "";
   rfidData = "";  
   temp = "";
-  Serial.println("Reset");
+}
+void fullReset()
+{
+  started = false;
+  rfidCorrect = false;
+  tempData = 0;
+  rotData = 0;
+  toPrint = "Temp";
+  prevPrint = "";
+  rfidData = "";  
+  temp = "";
+  kegComplete = false;
+  Serial.println("Full Reset");
 }
