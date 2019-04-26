@@ -4,16 +4,19 @@
 #define RST_PIN         9          // Configurable, see typical pin layout above
 #define SS_PIN          10       // Configurable, see typical pin layout above
 
-const byte numReaders = 4;
-const byte ssPins[numReaders] = {53, 47, 45, 43};
+#define DEBUG
+
+const byte numReaders = 3;
+//47: Human DNA | 45: Cephalopod DNA | 43: Catalyst
+const byte ssPins[numReaders] = {47, 45, 43};
 const byte resetPin = 5;
 
 MFRC522 mfrc522[numReaders];
 
 String currentIDs[numReaders];
 
-String correctIDs[numReaders] = {"305c17a3", "ba9d18d3", "1474f1d5", "ecdcd183"}; //ala3d083
-String idStatus[numReaders] = {"N", "N", "N", "N"};
+String correctIDs[numReaders] = {"ba9d18d3", "1474f1d5", "ecdcd183"}; //ala3d083
+String idStatus[numReaders] = {"N", "N", "N"};
 
 MFRC522::MIFARE_Key key;
 
@@ -21,7 +24,8 @@ MFRC522::MIFARE_Key key;
 byte sector         = 1;
 byte blockAddr      = 4;
 byte dataBlock[]    = {
-    0xda, 0xdd, 0xee   //correct values for keg
+    //0xda, 0xdd, 0xee   //correct values for keg
+    0x11, 0x11, 0x11
 };
 byte trailerBlock   = 7;
 MFRC522::StatusCode status;
@@ -41,6 +45,7 @@ const int tempPlus5Pin = 33;
 const int tempPlus1Pin = 35;
 const int startPin = 23;
 const int voltPins[] = {24, 26, 28, 30, 32, 34, 36, 38};
+const int lockPin = 10;
 
 //data and debounce times
 double tempData = 0;
@@ -53,7 +58,7 @@ long timeTempPlus1 = 0;
 long timeSend = 0;
 long timeSerial = 0;
 const int sendDebounce = 40;
-const int compDebounce = 350;
+const int compDebounce = 400;
 float currentTime = 0;
 boolean changedValue = false;
 boolean rfidCorrect = false;
@@ -73,6 +78,7 @@ void setup() {
   lastRotAState = digitalRead(rotAPin);
   pinMode(rotBPin, INPUT);
   pinMode(startPin, INPUT_PULLUP);
+  pinMode(lockPin, LOW);
   for (int i=0; i < 8; i++)
   {
     pinMode(voltPins[i], INPUT_PULLUP);
@@ -121,6 +127,13 @@ void loop() {
     {
       rfidCorrect = true; 
     }
+    if (check == 'W')
+    {
+      digitalWrite(lockPin, HIGH);
+      delay(10);
+      digitalWrite(lockPin, LOW);
+      Serial.println("Lock triggered");
+    }
   }
   if (!rfidCorrect)
   {
@@ -149,14 +162,14 @@ String rfidCheck() {
 
     currentIDs[i] = readRFID;
     if (currentIDs[i] == correctIDs[i]){
-      if (i == 2 && !kegComplete) //special validation for keg, need to read rfid data
+      if (i == 1 && !kegComplete) //special validation for keg, need to read rfid data
         kegComplete = validate(mfrc522[i]);
       else
         idStatus[i] = "Y"; //yes
     }
     else
     {
-      if (i == 2)
+      if (i == 1)
         kegComplete = false;
       idStatus[i] = "N"; //no
     }
@@ -165,7 +178,7 @@ String rfidCheck() {
   
   String rfidData = "S-C-";
   for(int i = 0; i < numReaders; i++){
-    if(i == 2)
+    if(i == 1)
     {
       if(kegComplete)
         idStatus[i] = "Y";
@@ -188,8 +201,9 @@ boolean validate(MFRC522 reader)
         Serial.println(reader.GetStatusCodeName(status));
         status = (MFRC522::StatusCode) reader.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(reader.uid));
   }
-  
+  #ifdef DEBUG
   reader.PICC_DumpMifareClassicSectorToSerial(&(reader.uid), &key, sector);
+  #endif
   status = (MFRC522::StatusCode) reader.MIFARE_Read(blockAddr, buffer, &size);
   if (status != MFRC522::STATUS_OK) {
       Serial.print(F("MIFARE_Read() failed: "));
@@ -199,7 +213,9 @@ boolean validate(MFRC522 reader)
   for (byte i = 10; i < 13; i++) {
     if (buffer[i] != dataBlock[i-10])
       result = false;
+    #ifdef DEBUG
     Serial.print(buffer[i], HEX); Serial.print(" "); Serial.print(dataBlock[i-10],HEX); Serial.print(" ");
+    #endif
   }
   Serial.println();
   return result;

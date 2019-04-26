@@ -1,12 +1,15 @@
+import os
+os.environ['KIVY_GL_BACKEND'] = 'sdl2'
+os.environ['KIVY_IMAGE'] = 'pil'
 import kivy
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.logger import Logger
-from kivy.properties import OptionProperty, NumericProperty, ListProperty, BooleanProperty
+from kivy.properties import OptionProperty, NumericProperty, ListProperty, BooleanProperty, ObjectProperty
 from kivy.garden.collider import Collide2DPoly
 
 from kivy.core.window import Window
-from kivy.graphics import Rectangle, RoundedRectangle, Color, Line, Quad, Mesh
+from kivy.graphics import Rectangle, RoundedRectangle, Color, Line, Quad, Mesh, Ellipse
 from kivy.clock import Clock
 from kivy.core.text import Label as CoreLabel
 from kivy.core.image import Image
@@ -16,13 +19,17 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.widget import Widget
 from kivy.uix.label import Label
-from kivy.uix.effectwidget import *
-from kivy.uix.screenmanager import ScreenManager, FadeTransition, Screen
+from kivy.uix.video import Video
+from kivy.uix.image import Image as uixImage
+from kivy.uix.screenmanager import ScreenManager, Screen, FadeTransition, WipeTransition, RiseInTransition
+from kivy.uix.progressbar import ProgressBar
+from kivy.uix.modalview import ModalView
 
 import time
 import random
 import serial
 import io
+
 from functools import partial
 import threading
 
@@ -40,36 +47,38 @@ ScreenManagement:
     stat1: rfidStatus1
     stat2: rfidStatus2
     stat3: rfidStatus3
-    stat4: rfidStatus4
 
     canvas.before:
         Rectangle:
             pos: self.pos
             size: self.size
             source: "assets/GeneSplicerBackGround.jpg"
+        Rectangle:
+            source: 'kegPic.png'
+            size: 235, 235
+            pos: 1050, 340
+    Label:
+        font_size: 56
+        font_name: 'LiquidCrystal-Normal.otf'
+        color: (0,1,0,1)
+        text: "ENGAGED"
+        pos: -680,-325
     Label:
         id: rfidStatus1
         font_size: 56
         font_name: 'LiquidCrystal-Normal.otf'
         color: (.909,.133,.133,1)
         text: "MISSING"
-        pos: -680,-325
+        pos: -245,-325
     Label:
         id: rfidStatus2
         font_size: 56
         font_name: 'LiquidCrystal-Normal.otf'
         color: (.909,.133,.133,1)
         text: "MISSING"
-        pos: -245,-325
-    Label:
-        id: rfidStatus3
-        font_size: 56
-        font_name: 'LiquidCrystal-Normal.otf'
-        color: (.909,.133,.133,1)
-        text: "MISSING"
         pos: 195,-325
     Label:
-        id: rfidStatus4
+        id: rfidStatus3
         font_size: 56
         font_name: 'LiquidCrystal-Normal.otf'
         color: (.909,.133,.133,1)
@@ -173,42 +182,66 @@ ScreenManagement:
                         group: 'cover'
                         size: 40, self.height-50
                         pos: self.width - 65, self.y+25
-                canvas.after:
                     Color:
+                        group: 'lineColor'
                         rgba: 0,0,1,1
                     Line:
                         id: line
                         points: self.points
                         width: self.linewidth
                         close: self.close
+                    Color:
+                        group: 'cataTriColor'
+                        rgba: .475, .486, .478, 1
+                    Rectangle:
+                        group: 'cataTri'
+                        source: 'cataTri.png'
+                        size: 32, 32
+                        pos: self.points[-2]-5, self.points[-1]-18
             Div:
                 id: status
                 size_hint: 1, 0.2
                 
+                Image:
+                    id: gifLeft
+                    source: 'particleLeft.gif'
+                    anim_delay: 0
+                    allow_stretch: True
+                    keep_ratio: False
+                    color: 1,1,1,0.85
+                    size: 960, 90
+                    pos: 0, status.y
+                Image:
+                    id: gifRight
+                    source: 'particleRight.gif'
+                    anim_delay: 0
+                    allow_stretch: True
+                    keep_ratio: False
+                    color: 1,1,1,0.85
+                    size: 960, 90
+                    pos: 960, status.y
                 GenLabel:
-                    font_size: 56
                     id: statusText
                     text: 'Initial Startup'
-                    color: 0, 1, .333, 1
-                    pos: status.x + status.width/6, status.y
+                    pos: status.x + status.width/6, status.y-4
+                    color: .475, .486, .478, 1
 
                 GenLabel:
                     id: timer
                     text: 'TIME LEFT'
-                    color: 0, 1, .333, 1
-                    pos: status.x + status.width/4 * 3, status.y
+                    pos: status.x + status.width/4 * 3, status.y-4
+                    color: .475, .486, .478, 1
             
                 GenLabel:
                     id: timerData
                     text: '-'
-                    pos: status.x + status.width/4 *3 + 200, status.y
+                    pos: status.x + status.width/4 *3 + 200, status.y-4
             
                 GenLabel:
                     id: title
                     text: 'GENE SPLICER'
-                    color: 0, 1, .333, 1
-                    pos: status.x + status.width/2.1, status.y
-                    font_size: 64
+                    pos: status.x + status.width/2.1, status.y-4
+                    color: .475, .486, .478, 1
                         
         Bottom:
             cols: 3
@@ -236,13 +269,14 @@ ScreenManagement:
                         pos: self.width/6, self.height/1.2
                 GenLabel:
                     font_size: 56
-                    pos: temperature.width/2.4, temperature.height/1.25
+                    pos: temperature.width/2.4, temperature.height/1.225
                     text: 'Temperature'
                 GenLabel:
                     id: tempInfo
                     font_size: 116
                     pos: temperature.width/2 - 45, temperature.height/4
                     text: 'Waiting...'
+                    color: 1,1,1,1
                 GenLabel:
                     id: targetLabel
                     pos: temperature.width/3, temperature.height/2
@@ -273,7 +307,7 @@ ScreenManagement:
                         size: (((root.width*4)/6)/3), self.height/6
                         pos: ((root.width/3)+(root.width/18)), self.height/1.2
                 GenLabel:
-                    font_size: 64
+                    font_size: 56
                     pos: 920, pressure.height/1.225
                     text: 'Pressure'
                 GenLabel:
@@ -281,6 +315,7 @@ ScreenManagement:
                     font_size: 116
                     pos: 920, pressure.height/4
                     text: 'Waiting...'
+                    color: 1,1,1,1
                 GenLabel:
                     id: targetLabel
                     pos: 800, pressure.height/2
@@ -312,7 +347,7 @@ ScreenManagement:
                         size: (((root.width*4)/6)/3), self.height/6
                         pos: ((root.width/3)*2+(root.width/18)), self.height/1.2
                 GenLabel:
-                    font_size: 64
+                    font_size: 56
                     pos: 1550, voltage.height/1.225
                     text: 'Voltage'
                 GenLabel:
@@ -320,6 +355,7 @@ ScreenManagement:
                     font_size: 116
                     pos: 1550, voltage.height/4
                     text: 'Waiting...'
+                    color: 1,1,1,1
                 GenLabel:
                     id: targetLabel
                     pos: 1500, voltage.height/2
@@ -353,6 +389,32 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         app = App.get_running_app()
         self._set_headers()
+        if (self.path == "/status"):
+            if (app.instance.ids.catalyst.puzzleSolved):
+                self.wfile.write(bytes("Splicer Won", 'utf-8'))
+            elif (app.manager.current == "CompScreen"):
+                rfidCurrent = app.rfidCurrent
+                compStatus = {'H.DNA': '', 'C.DNA': '', 'Cata': ''}
+                i = 0
+                returnString = '|'
+                for key in list(compStatus):
+                    compStatus[key] = rfidCurrent[i]
+                    returnString += ' {0}: {1} |'.format(key, compStatus[key])
+                    i+=1
+                self.wfile.write(bytes(returnString, 'utf-8'))
+            elif (app.manager.current == 'GeneScreen'):
+                self.wfile.write(bytes(app.instance.ids.statusText.text, "utf-8"))
+
+        elif(self.path == "/win"):
+            self.wfile.write(bytes("Splicer Triggered", "utf-8"))
+            if (app.manager.current == "CompScreen"):
+                Clock.schedule_once(partial(app.switchScreen, "GeneScreen"), 0.5)
+                app.win("Comp")
+            else:
+                app.win("Gene")
+        elif(self.path == "/reset"):
+            self.wfile.write(bytes("Splicer Reset", "utf-8"))
+            app.reset("Full")
 
 #seperate thread is made to manage all network requests, class shouldn't need to be changed
 class Server(socketserver.ThreadingMixIn, HTTPServer):
@@ -366,7 +428,7 @@ class GeneScreen(Screen):
     pass
 class CompScreen(Screen):
     def build(self, *args):
-        self.labels = [self.stat1, self.stat2, self.stat3, self.stat4]
+        self.labels = [self.stat1, self.stat2, self.stat3]
 
 def buttonTrig():
     app = App.get_running_app()
@@ -377,11 +439,11 @@ def buttonTrig():
 
 class Cata(FloatLayout):
     puzzleSolved = False
-    gravity = 0.08
+    gravity = 0.06
     velocity = 0
     accel = 0
     close = BooleanProperty(False)
-    points = ListProperty([28,850,28,850])
+    points = ListProperty([28,850])
     meshPointsBot = [50,655,0,0, 321,875,0,0, 640,850,0,0, 960,950,0,0, 1280,950,0,0, 1600,800,0,0, 1895,700,0,0, 1895,655,0,0]
     meshBotCollide = Collide2DPoly([float(x) for x in meshPointsBot if x != 0], cache=True)
     meshIndBot = [0,1,2,3,4,5,6,7]
@@ -393,6 +455,7 @@ class Cata(FloatLayout):
     linewidth = NumericProperty(3)
     nextPoint = 321
     prevPoint = 28
+    colorDir = False
 
     def __init__(self, **kwargs):
         super(Cata, self).__init__(**kwargs)
@@ -418,34 +481,75 @@ class Cata(FloatLayout):
                         return
                 else:
                     app.instance.ids.timerData.color = (1,1,1,1)
-                    
+        
+        lineColor = app.instance.ids.catalyst.canvas.get_group('lineColor')[0].rgba[2]
+        if (lineColor >= 1):
+            self.colorDir = False
+        elif (lineColor < .4):
+            self.colorDir = True
+        if (self.colorDir):
+            lineColor += .02
+        else:
+            lineColor -= .02
+        app.instance.ids.catalyst.canvas.get_group('lineColor')[0].rgba[2] = lineColor
+
         #acceleration per height region
         self.accel += self.gravity
         toCheck = self.accel
         if (toCheck < 3.5 and toCheck > 0): 
-            self.accel *= 1.2
+            self.accel *= 1.06
         elif (toCheck < 0):
             self.accel *= 0.8
         elif (toCheck == 0):
             self.accel = 0.5
 
         self.velocity += self.accel
-
+        
         if (app.started):
-            #constant x movement for different sections. first and last are smaller than the rest
-            if (not self.crossed[0]):
-                temp[1] += .81 #.54
-            elif (not self.crossed[4]):
-                temp[1] += .81 #.54 .5316
-            elif (self.crossed[0] and self.crossed[4]):
-                temp[1] += .81 #.4883
-
+            temp[1] += 1.1
         self.points.append(temp[1])
+
+        for pos,x in enumerate(self.crossed):
+            if (not app.started):
+                if (app.tempCurrent == app.tempTargets[0] and app.instance.ids.tempInfo.color == [1,1,1,1]):
+                    app.instance.ids.tempInfo.color = (0,1,0,1)
+                elif (not app.tempCurrent == app.tempTargets[0] and app.instance.ids.tempInfo.color == [0,1,0,1]):
+                    app.instance.ids.tempInfo.color = (1,1,1,1)
+                if (app.voltCurrent == app.voltTargets[0] and app.instance.ids.voltInfo.color == [1,1,1,1]):
+                    app.instance.ids.voltInfo.color = (0,1,0,1)
+                elif (not app.voltCurrent == app.voltTargets[0] and app.instance.ids.voltInfo.color == [0,1,0,1]):
+                    app.instance.ids.voltInfo.color = (1,1,1,1)
+                if (app.presCurrent == app.presTargets[0] and app.instance.ids.pressInfo.color == [1,1,1,1]):
+                    app.instance.ids.pressInfo.color = (0,1,0,1)
+                elif (not app.presCurrent == app.presTargets[0] and app.instance.ids.pressInfo.color == [0,1,0,1]):
+                    app.instance.ids.pressInfo.color = (1,1,1,1)
+                break
+            elif (not x):
+                if (app.tempCurrent == app.tempTargets[pos+1] and app.instance.ids.tempInfo.color == [1,1,1,1]):
+                    app.instance.ids.tempInfo.color = (0,1,0,1)
+                elif (not app.tempCurrent == app.tempTargets[pos+1] and app.instance.ids.tempInfo.color == [0,1,0,1]):
+                    app.instance.ids.tempInfo.color = (1,1,1,1)
+                if (app.voltCurrent == app.voltTargets[pos+1] and app.instance.ids.voltInfo.color == [1,1,1,1]):
+                    app.instance.ids.voltInfo.color = (0,1,0,1)
+                elif (not app.voltCurrent == app.voltTargets[pos+1] and app.instance.ids.voltInfo.color == [0,1,0,1]):
+                    app.instance.ids.voltInfo.color = (1,1,1,1)
+                if (app.presCurrent == app.presTargets[pos+1] and app.instance.ids.pressInfo.color == [1,1,1,1]):
+                    app.instance.ids.pressInfo.color = (0,1,0,1)
+                elif (not app.presCurrent == app.presTargets[pos+1] and app.instance.ids.pressInfo.color == [0,1,0,1]):
+                    app.instance.ids.pressInfo.color = (1,1,1,1)
+                break
+
         temp[0] -= self.velocity
-        if (temp[0] > 1050):
-            temp[0] = 1050
-        elif (temp[0] < 660):
-            temp[0] = 660
+        if (app.started):
+            if (temp[0] > 1050):
+                temp[0] = 1050
+            elif (temp[0] < 660):
+                temp[0] = 660
+        else:
+            if (temp[0] > 1000):
+                temp[0] = 1000
+            elif(temp[0] < 700):
+                temp[0] = 700
         temp[0] = round(temp[0], 1)
         self.points.append(temp[0])
         
@@ -453,7 +557,7 @@ class Cata(FloatLayout):
             self.velocity = 0
         
         if (app.started):
-            if (self.counter == 20):
+            if (self.counter == 10):
                 self.points.append(temp[1])
                 self.points.append(temp[0])
                 self.counter = 0
@@ -464,11 +568,11 @@ class Cata(FloatLayout):
         currentAccel = self.accel
         toCheck = self.points[-1]
         if (toCheck > 975 and not currentAccel == -0.15):
-            self.accel = -0.15
+            self.accel = -0.20
         elif(toCheck > 860 and not currentAccel == -0.21) :
-            self.accel = -0.21
+            self.accel = -0.27
         elif(toCheck > 800 and not currentAccel == -0.25):
-            self.accel = -0.25
+            self.accel = -0.32
         elif(not currentAccel == -0.4):
             self.accel = -0.4
 class Top(GridLayout):
@@ -479,36 +583,89 @@ class Bottom(GridLayout):
         super(Bottom, self).__init__(**kwargs)
 class Div(Widget):
     def __init__(self, **kwargs):
-        super(Div, self).__init__(**kwargs)
-
-    def generateTarget(self, *args):
-        app = App.get_running_app()
-        if ("range" in args):
-            self.target1 = random.randint(10,97)
-            self.target2 = self.target1 + 2
-            self.children[0].text = str(self.target1) + "-" + str(self.target2) 
-        else:
-            self.target1 = random.randint(10,99)
-            self.children[0].text = str(self.target1)
-        
+        super(Div, self).__init__(**kwargs)      
 class Base(GridLayout):
     def __init__(self, **kwargs):
         super(Base, self).__init__(**kwargs)
 
     def on_touch_down(self, touch):
         print(touch.pos)
-        
 class GenLabel(Label):
     def __init__(self, **kwargs):
         self.font_name = 'ColdWarm.otf'
         self.font_size = 48
         super(GenLabel, self).__init__(**kwargs)
 
+class CircularProgressBar(ProgressBar):
+    def __init__(self, **kwargs):
+        super(CircularProgressBar, self).__init__(**kwargs)
+
+        # Set constant for the bar thickness
+        self.thickness = 64
+        # Create a direct text representation
+        self.label = CoreLabel(text="0%", font_size=self.thickness)
+
+        # Initialise the texture_size variable
+        self.texture_size = None
+
+        # Refresh the text
+        self.refresh_text()
+
+        # Redraw on innit
+        self.draw()
+ 
+    def draw(self):
+        self.pos = (800,330)
+        with self.canvas:
+            # Empty canvas instructions
+            self.canvas.clear()
+
+            # Draw no-progress circle
+            Color(0.26, 0.26, 0.26)
+            Ellipse(pos=self.pos, size=self.size)
+            # Draw progress circle, small hack if there is no progress (angle_end = 0 results in full progress)
+            Color(0, 1, 0)
+            Ellipse(pos=self.pos, size=self.size,
+                    angle_end=(0.001 if self.value_normalized == 0 else self.value_normalized*360))
+
+            # Draw the inner circle (colour should be equal to the background)
+            Color(0, 0, 0)
+            Ellipse(pos=(self.pos[0] + self.thickness / 2, self.pos[1] + self.thickness / 2),
+                    size=(self.size[0] - self.thickness, self.size[1] - self.thickness))
+
+            # Center and draw the progress text
+            Color(1, 1, 1, 1)
+            Rectangle(texture=self.label.texture, size=self.texture_size,
+                      pos=(self.pos[0]+self.width/2 - self.texture_size[0]/2, self.pos[1] +self.height/2- self.texture_size[1]/2))
+    def refresh_text(self):
+        # Render the label
+        self.label.refresh()
+
+        # Set the texture size each refresh
+        self.texture_size = list(self.label.texture.size)
+
+    def set_value(self, value):
+        # Update the progress bar value
+        self.value = value
+
+        # Update textual value and refresh the texture
+        self.label.text = str(int(self.value_normalized*100)) + "%"
+        self.refresh_text()
+
+        # Draw all the elements
+        self.draw()
+
+
+
+
 class SpliceApp(App):
-    prevData = ""
     started = False
     wonLabel = InstructionGroup()
     errorLabel = InstructionGroup()
+    transitionLabel = InstructionGroup()
+    view = ModalView(size_hint=(None, None), size=(700, 500))
+    grid = GridLayout(rows = 2)
+
     #tempTargets = [100, 152, 405, 385, 275, 36]
     tempTargets = [0,0,0,0,0,0]
     #voltTargets = [32, 7, 24, 228, 255, 4]
@@ -518,12 +675,13 @@ class SpliceApp(App):
     tempCurrent = 0
     voltCurrent = 0
     presCurrent = 0
+    rfidCurrent = ['No','No','No']
     currentMessage = False
     flashing = False
     screenSwitched = False
 
     def __init__(self, **kwargs):
-        self.serRead = Clock.schedule_interval(self.serialRead, 0.05)
+        self.serRead = Clock.schedule_interval(self.serialRead, 0.05) 
         super(SpliceApp, self).__init__(**kwargs)
     
     def switchScreen(self, *args):
@@ -533,7 +691,6 @@ class SpliceApp(App):
         data = self.getLatestStatus()
         if (not data):
             return
-        self.prevData = data
         del data[0]    #gets rid of Start marker (S)
         del data[-1]   #gets rid of End marker (E)
         while(len(data) >= 2):
@@ -548,6 +705,10 @@ class SpliceApp(App):
                         else:
                             if (not self.currentMessage):
                                 self.started = True
+                                self.instance.ids.catalyst.points.append(self.instance.ids.catalyst.points[-2])
+                                self.instance.ids.catalyst.points.append(self.instance.ids.catalyst.points[-2])
+                                self.instance.ids.catalyst.canvas.get_group('cataTriColor')[0].rgba[3] = 0
+                                self.instance.ids.statusText.text = 'STAGE 1 OF 6'
                                 self.instance.ids.temperature.children[0].text = str(self.tempTargets[1]) + " C"
                                 self.instance.ids.pressure.children[0].text = str(self.presTargets[1]) + " ATM"
                                 self.instance.ids.voltage.children[0].text = str(self.voltTargets[1]) + "V"
@@ -575,16 +736,20 @@ class SpliceApp(App):
                         if (x == 'Y'):
                             self.compScreen.labels[pos].color =(0,1,0,1)
                             self.compScreen.labels[pos].text = "ENGAGED"
+                            self.rfidCurrent[pos] = 'Yes'
                         elif (x == 'N'):
                             allCorrect = False
                             self.compScreen.labels[pos].color =(.909, .133, .133, 1)
                             self.compScreen.labels[pos].text = "MISSING"
+                            self.rfidCurrent[pos] = 'No'
                         elif (x == 'I'):
                             allCorrect = False
                             self.compScreen.labels[pos].color = (.843, .384, .098, 1)
                             self.compScreen.labels[pos].text = "UNSEQUENCED"
+                            self.rfidCurrent[pos] = 'UnSeq'
                     if (allCorrect and not self.screenSwitched):
                         self.screenSwitched = True
+                        self.compScreen.canvas.add(self.transitionLabel)
                         self.buttonThread = threading.Thread(target = buttonTrig).start()
                         self.update = Clock.schedule_interval(self.instance.ids.catalyst.update_points, .016)
                         serCom.write(b'J\r\n')
@@ -662,7 +827,7 @@ class SpliceApp(App):
             self.instance.ids.voltage.children[0].text = "-"
         elif(temp >= 1892):
             cata.puzzleSolved = True
-            self.win() 
+            self.win("Gene") 
         return True
 
     def compCheck(self, *args):
@@ -721,12 +886,22 @@ class SpliceApp(App):
 
         error = self.errorLabel
         error.add(Color(0,0,0,1))
-        error.add(Rectangle(size=(1000, 190), pos= (400, 520)))
+        error.add(Rectangle(size=(1000, 210), pos= (450, 520)))
         error.add(Color(1,.149,.161,1))
-        error.add(Rectangle(size=(980, 210), pos= (410, 530)))
+        error.add(Rectangle(size=(980, 190), pos= (460, 530)))
         error.add(Color(1,1,1,1))
 
-        self.manager = ScreenManagement(transition = FadeTransition())
+        trans = self.transitionLabel
+        trans.add(Color(0,0,0,1))
+        trans.add(Rectangle(size=(1000, 210), pos= (450, 520)))
+        trans.add(Color(.250, .80, .175))
+        trans.add(Rectangle(size=(980, 190), pos= (460, 530)))
+        trans.add(Color(1,1,1,1))
+        label = CoreLabel(font_size=84, font_name='basica.ttf', text = 'INITIALIZING')
+        label.refresh()
+        trans.add(Rectangle(texture=label.texture, size= label.size, pos=(625, 580)))
+
+        self.manager = ScreenManagement(transition = FadeTransition(duration=0.8))
         self.instance = GeneScreen(name='GeneScreen')
         self.compScreen = CompScreen(name='CompScreen')
         self.compScreen.build()
@@ -758,10 +933,9 @@ class SpliceApp(App):
     def reset(self, *args):
         #reset points, clear line, reset data
         self.started = False
-        self.prevData = ""
         cata = self.instance.ids.catalyst
         cata.points.clear()
-        cata.points = [28,850,28,850]
+        cata.points = [28,850]
         
         self.instance.ids.timerData.color = (1,1,1,1)
         self.instance.ids.timerData.text = "-"
@@ -790,14 +964,41 @@ class SpliceApp(App):
         if (args[0] == "Full"):
             serCom.write(b'R\r\n')
             self.screenSwitched = False
-            self.manager.current = "CompScreen"
+            self.compScreen.canvas.remove(self.transitionLabel)
+            self.instance.canvas.remove(self.wonLabel)
+            Clock.schedule_once(partial(self.switchScreen, "CompScreen"), 0.5)
+
         elif (args[0] == "Stage"):
             serCom.write(b'S\r\n')
+            self.instance.ids.catalyst.canvas.get_group('cataTriColor')[0].rgba[3] = 1
         
     def win(self, *args):
-        self.instance.canvas.add(self.wonLabel)
-        Clock.unschedule(self.update)
+        def animate(appInst, *largs):
+            progBar = appInst.view.children[0].children[0]
+            if (appInst.view.children[0].children[0].value >= 100):
+                Clock.unschedule(self.winAnim)
+                appInst.view.children[0].children[1].font_size = 48
+                appInst.view.children[0].children[1].text = "Memory Write Successful"
+                serCom.write(b'W\r\n')
+            else:
+                progBar.set_value(progBar.value + 1)
+        if (args[0] == "Gene"):
+            try:
+                Clock.unschedule(self.update)
+            except AttributeError:
+                pass
+        #self.instance.canvas.add(self.wonLabel)
         self.instance.ids.timerData.text = ('%.2f' % 0.0)
+        self.grid.add_widget(GenLabel(text='Writing to Memory Module...', pos=(800, 900), font_size = 46, size_hint_y = 0.2))
+        self.grid.add_widget(CircularProgressBar(id='progressBar', height=300, width=300, size_hint = (None,None)))
+        #background = uixImage(source='particleLeft.gif', anim_delay = 0, size= (700,500), pos = self.view.pos, allow_stretch = True)
+        with self.grid.canvas.before:
+            uixImage(source='particleLeft.gif', anim_delay=0, size= (670,470), pos=(625,307), allow_stretch = True, keep_ratio = False)
+        
+        self.view.add_widget(self.grid)
+        self.view.open(animation=True)
+        self.winAnim = Clock.schedule_interval(partial(animate, self), 0.05)
+        
 
     def messagePopUp(self, *args):
         self.currentMessage = True
