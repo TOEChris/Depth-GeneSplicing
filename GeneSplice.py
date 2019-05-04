@@ -407,6 +407,7 @@ class Handler(BaseHTTPRequestHandler):
 
         elif(self.path == "/win"):
             self.wfile.write(bytes("Splicer Triggered", "utf-8"))
+            app.instance.ids.catalyst.puzzleSolved = True
             if (app.manager.current == "CompScreen"):
                 Clock.schedule_once(partial(app.switchScreen, "GeneScreen"), 0.5)
                 app.win("Comp")
@@ -468,7 +469,7 @@ class Cata(FloatLayout):
         temp.append(self.points.pop())
         if (app.started):
             if ((float(temp[1]), float(temp[0])) in self.meshBotCollide or (float(temp[1]), float(temp[0])) in self.meshTopCollide):
-                app.messagePopUp("CATALYST IMBALANCE", 56, 485)
+                app.messagePopUp("CATALYST IMBALANCE", 56, 510)
                 app.reset("Stage")
                 return
             #timer data, proportion of distance crossed
@@ -566,7 +567,10 @@ class Cata(FloatLayout):
             
     def jump(self, *args):
         currentAccel = self.accel
-        toCheck = self.points[-1]
+        try:
+            toCheck = self.points[-1]
+        except IndexError:
+            return
         if (toCheck > 975 and not currentAccel == -0.15):
             self.accel = -0.20
         elif(toCheck > 860 and not currentAccel == -0.21) :
@@ -665,6 +669,7 @@ class SpliceApp(App):
     transitionLabel = InstructionGroup()
     view = ModalView(size_hint=(None, None), size=(700, 500))
     grid = GridLayout(rows = 2)
+    update = None
 
     #tempTargets = [100, 152, 405, 385, 275, 36]
     tempTargets = [0,0,0,0,0,0]
@@ -681,7 +686,7 @@ class SpliceApp(App):
     screenSwitched = False
 
     def __init__(self, **kwargs):
-        self.serRead = Clock.schedule_interval(self.serialRead, 0.05) 
+        self.serRead = Clock.schedule_interval(self.serialRead, 0.05)
         super(SpliceApp, self).__init__(**kwargs)
     
     def switchScreen(self, *args):
@@ -699,7 +704,7 @@ class SpliceApp(App):
                     if (str(data[1]) == 'True'):
                         if (self.compCheck(0) == False):
                             if (not self.currentMessage):
-                                self.messagePopUp("INITIAL TARGETS NOT MET", 56, 430)
+                                self.messagePopUp("INITIAL TARGETS NOT MET", 56, 490)
                             serCom.write(b'S\r\n')
                             break
                         else:
@@ -750,8 +755,8 @@ class SpliceApp(App):
                     if (allCorrect and not self.screenSwitched):
                         self.screenSwitched = True
                         self.compScreen.canvas.add(self.transitionLabel)
-                        self.buttonThread = threading.Thread(target = buttonTrig).start()
-                        self.update = Clock.schedule_interval(self.instance.ids.catalyst.update_points, .016)
+                        if (not self.update):
+                            self.update = Clock.schedule_interval(self.instance.ids.catalyst.update_points, .016)
                         serCom.write(b'J\r\n')
                         Clock.schedule_once(partial(self.switchScreen, "GeneScreen"), 2)
             del data[0:1]
@@ -762,7 +767,7 @@ class SpliceApp(App):
         if (not cata.crossed[0] and temp >= 321):
             if (self.compCheck(1) == False):
                 self.reset("Stage")
-                self.messagePopUp("TARGETS NOT MET", 64, 510)
+                self.messagePopUp("TARGETS NOT MET", 64, 520)
                 return False
             cata.prevPoint = 321
             cata.nextPoint = 640
@@ -775,7 +780,7 @@ class SpliceApp(App):
         elif(not cata.crossed[1] and temp >= 640):
             if (self.compCheck(2) == False):
                 self.reset("Stage")
-                self.messagePopUp("TARGETS NOT MET", 64, 510)
+                self.messagePopUp("TARGETS NOT MET", 64, 520)
                 return False
             cata.prevPoint = 640
             cata.nextPoint = 959
@@ -788,7 +793,7 @@ class SpliceApp(App):
         elif(not cata.crossed[2] and temp >= 959):
             if (self.compCheck(3) == False):
                 self.reset("Stage")
-                self.messagePopUp("TARGETS NOT MET", 64, 510)
+                self.messagePopUp("TARGETS NOT MET", 64, 520)
                 return False
             cata.prevPoint = 959
             cata.nextPoint = 1280
@@ -802,7 +807,7 @@ class SpliceApp(App):
             compResults = self.compCheck(4)
             if (self.compCheck(4) == False):
                 self.reset("Stage")
-                self.messagePopUp("TARGETS NOT MET", 64, 510)
+                self.messagePopUp("TARGETS NOT MET", 64, 520)
                 return False
             cata.prevPoint = 1280
             cata.nextPoint = 1600
@@ -815,7 +820,7 @@ class SpliceApp(App):
         elif(not cata.crossed[4] and temp >= 1600):
             if (self.compCheck(5) == False):
                 self.reset("Stage")
-                self.messagePopUp("TARGETS NOT MET", 64, 510)
+                self.messagePopUp("TARGETS NOT MET", 64, 520)
                 return False
             cata.prevPoint = 1600
             cata.nextPoint = 1892
@@ -908,7 +913,8 @@ class SpliceApp(App):
         self.manager.add_widget(self.instance)
         self.manager.add_widget(self.compScreen)
         self.manager.current = 'CompScreen'
-        
+
+        self.buttonThread = threading.Thread(target = buttonTrig).start()
         return self.manager
         
 
@@ -963,9 +969,13 @@ class SpliceApp(App):
         #serial commune reset
         if (args[0] == "Full"):
             serCom.write(b'R\r\n')
+            self.view.dismiss(force = True, animation = False)
+            self.view.remove_widget(self.grid)
+            self.grid = GridLayout(rows = 2)
             self.screenSwitched = False
             self.compScreen.canvas.remove(self.transitionLabel)
             self.instance.canvas.remove(self.wonLabel)
+            self.instance.ids.catalyst.puzzleSolved = False
             Clock.schedule_once(partial(self.switchScreen, "CompScreen"), 0.5)
 
         elif (args[0] == "Stage"):
@@ -987,17 +997,16 @@ class SpliceApp(App):
                 Clock.unschedule(self.update)
             except AttributeError:
                 pass
-        #self.instance.canvas.add(self.wonLabel)
-        self.instance.ids.timerData.text = ('%.2f' % 0.0)
-        self.grid.add_widget(GenLabel(text='Writing to Memory Module...', pos=(800, 900), font_size = 46, size_hint_y = 0.2))
-        self.grid.add_widget(CircularProgressBar(id='progressBar', height=300, width=300, size_hint = (None,None)))
-        #background = uixImage(source='particleLeft.gif', anim_delay = 0, size= (700,500), pos = self.view.pos, allow_stretch = True)
-        with self.grid.canvas.before:
-            uixImage(source='particleLeft.gif', anim_delay=0, size= (670,470), pos=(625,307), allow_stretch = True, keep_ratio = False)
+        if (len(self.grid.children) < 2):
+            self.instance.ids.timerData.text = ('%.2f' % 0.0)
+            self.grid.add_widget(GenLabel(text='Writing to Memory Module...', pos=(800, 900), font_size = 46, size_hint_y = 0.2))
+            self.grid.add_widget(CircularProgressBar(id='progressBar', height=300, width=300, size_hint = (None,None)))
+            with self.grid.canvas.before:
+                uixImage(source='blackBg.png', anim_delay=0, size= (670,470), pos=(625,307), allow_stretch = True, keep_ratio = False)
         
-        self.view.add_widget(self.grid)
-        self.view.open(animation=True)
-        self.winAnim = Clock.schedule_interval(partial(animate, self), 0.05)
+            self.view.add_widget(self.grid)
+            self.view.open(animation=True)
+            self.winAnim = Clock.schedule_interval(partial(animate, self), 0.03)
         
 
     def messagePopUp(self, *args):
@@ -1013,7 +1022,6 @@ class SpliceApp(App):
 
         self.instance.canvas.add(error)
         Clock.schedule_once(partial(removeLabel, self, error), 3.5)
-        
 
 def serverRun(server_class=Server, handler_class=Handler, port=80):
     server_address = ('10.24.7.62', port)

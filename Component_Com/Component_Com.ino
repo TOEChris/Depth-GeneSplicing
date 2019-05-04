@@ -1,9 +1,6 @@
 #include <MFRC522.h>
 #include <SPI.h>
 
-#define RST_PIN         9          // Configurable, see typical pin layout above
-#define SS_PIN          10       // Configurable, see typical pin layout above
-
 #define DEBUG
 
 const byte numReaders = 3;
@@ -24,8 +21,8 @@ MFRC522::MIFARE_Key key;
 byte sector         = 1;
 byte blockAddr      = 4;
 byte dataBlock[]    = {
-    //0xda, 0xdd, 0xee   //correct values for keg
-    0x11, 0x11, 0x11
+    0xda, 0xdd, 0xee   //correct values for keg
+    //0x11, 0x11, 0x11     //test values
 };
 byte trailerBlock   = 7;
 MFRC522::StatusCode status;
@@ -41,8 +38,12 @@ String rfidData = "";
 //pin data
 const int rotAPin = 2;
 const int rotBPin = 3;
+const int tempPlus10Pin = 31;
 const int tempPlus5Pin = 33;
 const int tempPlus1Pin = 35;
+const int tempMinus1Pin = 37;
+const int tempMinus5Pin = 39;
+const int tempMinus10Pin = 41;
 const int startPin = 23;
 const int voltPins[] = {24, 26, 28, 30, 32, 34, 36, 38};
 const int lockPin = 10;
@@ -53,8 +54,12 @@ double rotData = 0;
 int voltData = 0;
 int rotAState;
 int lastRotAState;
+long timeTempPlus10 = 0;
 long timeTempPlus5 = 0;
 long timeTempPlus1 = 0;
+long timeTempMinus1 = 0;
+long timeTempMinus5 = 0;
+long timeTempMinus10 = 0;
 long timeSend = 0;
 long timeSerial = 0;
 const int sendDebounce = 40;
@@ -72,8 +77,12 @@ String temp;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);   // Initialize serial communications with the PC
+  pinMode(tempPlus10Pin, INPUT_PULLUP);
   pinMode(tempPlus5Pin, INPUT_PULLUP);
   pinMode(tempPlus1Pin, INPUT_PULLUP);
+  pinMode(tempMinus1Pin, INPUT_PULLUP);
+  pinMode(tempMinus5Pin, INPUT_PULLUP);
+  pinMode(tempMinus10Pin, INPUT_PULLUP);
   pinMode(rotAPin, INPUT);
   lastRotAState = digitalRead(rotAPin);
   pinMode(rotBPin, INPUT);
@@ -250,6 +259,11 @@ void geneScreen()
     prevPrint = toPrint;
     toPrint = "S-";
     currentTime = millis();
+    if (digitalRead(tempPlus10Pin) == LOW && currentTime - timeTempPlus10 > compDebounce)
+    {
+      tempData += 10;
+      timeTempPlus10 = millis();
+    }
     if (digitalRead(tempPlus5Pin) == LOW && currentTime - timeTempPlus5 > compDebounce)
     {
       tempData += 5;
@@ -261,6 +275,24 @@ void geneScreen()
       tempData += 1;
       timeTempPlus1 = millis();
     }
+
+    if(digitalRead(tempMinus1Pin) == LOW && currentTime - timeTempMinus1 > compDebounce)
+    {
+      tempData -= 1;
+      timeTempMinus1 = millis();
+    }
+    if(digitalRead(tempMinus5Pin) == LOW && currentTime - timeTempMinus5 > compDebounce)
+    {
+      tempData -= 5;
+      timeTempMinus5 = millis();
+    }
+    if(digitalRead(tempMinus10Pin) == LOW && currentTime - timeTempMinus10 > compDebounce)
+    {
+      tempData -= 10;
+      timeTempMinus10 = millis();
+    }
+    if (tempData < 0)
+      tempData = 0;
     dtostrf(tempData, 10, 1, strBuff);
     temp = strBuff;
     toPrint += "T-" + temp + "-";
