@@ -247,45 +247,6 @@ ScreenManagement:
             cols: 3
             id: bottomBox
             Div:
-                id: temperature
-                size: root.size
-                pos: root.pos
-                canvas:
-                    Color:
-                        group: 'background'
-                        rgb: .008, .435, .620
-                    Rectangle:
-                        size: self.size
-                        pos: self.pos
-                    Color:
-                        rgb: .008, .145, .206
-                    RoundedRectangle:
-                        size: self.width - 50, self.height - 50
-                        pos: self.x + 25, self.y + 25
-                    Color:
-                        rgb: .008, .435, .620
-                    RoundedRectangle:
-                        size: (self.width*4)/6, self.height/6
-                        pos: self.width/6, self.height/1.2
-                GenLabel:
-                    font_size: 56
-                    pos: temperature.width/2.4, temperature.height/1.225
-                    text: 'Temperature'
-                GenLabel:
-                    id: tempInfo
-                    font_size: 116
-                    pos: temperature.width/2 - 45, temperature.height/4
-                    text: 'Waiting...'
-                    color: 1,1,1,1
-                GenLabel:
-                    id: targetLabel
-                    pos: temperature.width/3, temperature.height/2
-                    text: 'Target:'
-                GenLabel:
-                    id: targetData
-                    pos: temperature.width/1.75, temperature.height/2
-                    text: '100 C'
-            Div:
                 id: pressure
                 size: root.size
                 pos: root.pos
@@ -304,29 +265,68 @@ ScreenManagement:
                     Color:
                         rgb: .250, .60, .175
                     RoundedRectangle:
-                        size: (((root.width*4)/6)/3), self.height/6
-                        pos: ((root.width/3)+(root.width/18)), self.height/1.2
+                        size: (self.width*4)/6, self.height/6
+                        pos: self.width/6, self.height/1.2
                 GenLabel:
                     font_size: 56
-                    pos: 920, pressure.height/1.225
+                    pos: pressure.width/2.4, pressure.height/1.225
                     text: 'Pressure'
                 GenLabel:
                     id: pressInfo
                     font_size: 116
-                    pos: 920, pressure.height/4
+                    pos: pressure.width/2 - 45, pressure.height/4
                     text: 'Waiting...'
                     color: 1,1,1,1
                 GenLabel:
                     id: targetLabel
-                    pos: 800, pressure.height/2
+                    pos: pressure.width/4, pressure.height/2
                     text: 'Target:'
                 GenLabel:
                     id: targetData
-                    pos: 995, pressure.height/2
+                    pos: pressure.width/1.75, pressure.height/2
                     text: '9.15 Atm'
                 
             Div:
                 id: voltage
+                size: root.size
+                pos: root.pos
+                canvas:
+                    Color:
+                        group: 'background'
+                        rgb: .008, .435, .620
+                    Rectangle:
+                        size: self.size
+                        pos: self.pos
+                    Color:
+                        rgb: .008, .145, .206
+                    RoundedRectangle:
+                        size: self.width - 50, self.height - 50
+                        pos: self.x + 25, self.y + 25
+                    Color:
+                        rgb: .008, .435, .620
+                    RoundedRectangle:
+                        size: (((root.width*4)/6)/3), self.height/6
+                        pos: ((root.width/3)+(root.width/18)), self.height/1.2
+                GenLabel:
+                    font_size: 56
+                    pos: 920, voltage.height/1.225
+                    text: 'Voltage'
+                GenLabel:
+                    id: voltInfo
+                    font_size: 116
+                    pos: 920, voltage.height/4
+                    text: 'Waiting...'
+                    color: 1,1,1,1
+                GenLabel:
+                    id: targetLabel
+                    pos: 830, voltage.height/2
+                    text: 'Target:'
+                GenLabel:
+                    id: targetData
+                    pos: 992, voltage.height/2
+                    text: '32V'
+            Div:
+                id: temperature
                 size: root.size
                 pos: root.pos
                 canvas:
@@ -348,22 +348,22 @@ ScreenManagement:
                         pos: ((root.width/3)*2+(root.width/18)), self.height/1.2
                 GenLabel:
                     font_size: 56
-                    pos: 1550, voltage.height/1.225
-                    text: 'Voltage'
+                    pos: 1550, temperature.height/1.225
+                    text: 'Temperature'
                 GenLabel:
-                    id: voltInfo
+                    id: tempInfo
                     font_size: 116
-                    pos: 1550, voltage.height/4
+                    pos: 1550, temperature.height/4
                     text: 'Waiting...'
                     color: 1,1,1,1
                 GenLabel:
                     id: targetLabel
-                    pos: 1500, voltage.height/2
+                    pos: 1500, temperature.height/2
                     text: 'Target:'
                 GenLabel:
                     id: targetData
-                    pos: 1650, voltage.height/2
-                    text: '32V'
+                    pos: 1650, temperature.height/2
+                    text: '100 C'
 '''
 
 portCom = 'COM3'
@@ -842,9 +842,9 @@ class SpliceApp(App):
                 self.flashing = False
                 return
             comps = args[0]
-            tempOrig = Color(rgba = (.008, .435, .620, 1))
+            voltOrig = Color(rgba = (.008, .435, .620, 1))
             presOrig = Color(rgba = (.250, .60, .175, 1))
-            voltOrig = Color(rgba = (.62, .60, .012, 1))
+            tempOrig = Color(rgba = (.62, .60, .012, 1))
             if (comps[0]):
                 if (bottom.temperature.canvas.get_group('background')[0].rgba == tempOrig.rgba):
                     bottom.temperature.canvas.get_group('background')[0].rgba = (.6275,0,0,1)
