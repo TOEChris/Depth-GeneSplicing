@@ -4,7 +4,7 @@ Pin Information:
 	
 	Start Button - 23
 	Lock Pin - 10
-Component Arduino (COM3)
+	Component Arduino (COM3)-
 	RFID: 
 		Common Pins:
 			51 MOSI Reset Pin, 50 MISO Pin, 52 SCK Pin, 5 RST Pin
@@ -41,6 +41,6 @@ Component Arduino (COM3)
 	GND FROM LED LINE, PINS DAISY CHAIN AND FROM POWER MUST BE SHARED WITH ARUDINO GND!
 	Power connected to 5V
 
-	Cata Button Ardunio (COM4)
+	Cata Button Ardunio (COM4)-
 	Button - 7
 
