@@ -21,8 +21,8 @@ MFRC522::MIFARE_Key key;
 byte sector         = 1;
 byte blockAddr      = 4;
 byte dataBlock[]    = {
-    0xda, 0xdd, 0xee   //correct values for keg
-    //0x11, 0x11, 0x11     //test values
+    //0xda, 0xdd, 0xee   //correct values for keg
+    0x11, 0x11, 0x11     //test values
 };
 byte trailerBlock   = 7;
 MFRC522::StatusCode status;
@@ -50,7 +50,7 @@ const int lockPin = 10;
 
 //data and debounce times
 double tempData = 0;
-double rotData = 0;
+float rotData = 0;
 int voltData = 0;
 int rotAState;
 int lastRotAState;
@@ -62,8 +62,10 @@ long timeTempMinus5 = 0;
 long timeTempMinus10 = 0;
 long timeSend = 0;
 long timeSerial = 0;
+long timeRot = 0;
 const int sendDebounce = 40;
-const int compDebounce = 400;
+const int compDebounce = 150;
+const int rotDebounce = 100;
 float currentTime = 0;
 boolean changedValue = false;
 boolean rfidCorrect = false;
@@ -168,6 +170,7 @@ String rfidCheck() {
     // If the current reading is different from the last known reading
     if (readRFID != currentIDs[i])
       changedValue = true;
+    //Serial.println(readRFID);  
 
     currentIDs[i] = readRFID;
     if (currentIDs[i] == correctIDs[i]){
@@ -199,6 +202,8 @@ String rfidCheck() {
     rfidData += idStatus[i];
   }
   rfidData += "-E";
+  //DEBUG
+  rfidData = "S-C-YYY-E";
   return rfidData;
 }
 
@@ -259,6 +264,38 @@ void geneScreen()
     prevPrint = toPrint;
     toPrint = "S-";
     currentTime = millis();
+    
+    
+    rotAState = digitalRead(rotAPin);
+    if (rotAState != lastRotAState)
+    {
+      if (digitalRead(rotBPin) != rotAState)
+      {
+        rotData += 25;
+      }
+      else
+      {
+        rotData -= 25;
+        if (rotData <= 0)
+          rotData = 0;
+      }
+      lastRotAState = rotAState;
+    }
+    float rounded = rotData / 1000.0;
+    dtostrf(rounded, 10, 3, strBuff);
+    temp = strBuff;
+    toPrint += "R-" + temp + "-";
+
+    for (int i=0; i < 8; i++)
+    {
+      if (digitalRead(voltPins[i]) == HIGH)
+        voltData += ceil(pow(2, i));
+    }
+
+    itoa(voltData, strBuff, 10);
+    temp = strBuff;
+    toPrint += "V-" + String(temp) + "-";
+
     if (digitalRead(tempPlus10Pin) == LOW && currentTime - timeTempPlus10 > compDebounce)
     {
       tempData += 10;
@@ -275,57 +312,28 @@ void geneScreen()
       tempData += 1;
       timeTempPlus1 = millis();
     }
-
+    
     if(digitalRead(tempMinus1Pin) == LOW && currentTime - timeTempMinus1 > compDebounce)
     {
       tempData -= 1;
       timeTempMinus1 = millis();
-    }
-    if(digitalRead(tempMinus5Pin) == LOW && currentTime - timeTempMinus5 > compDebounce)
-    {
-      tempData -= 5;
-      timeTempMinus5 = millis();
     }
     if(digitalRead(tempMinus10Pin) == LOW && currentTime - timeTempMinus10 > compDebounce)
     {
       tempData -= 10;
       timeTempMinus10 = millis();
     }
+    if(digitalRead(tempMinus5Pin) == LOW && currentTime - timeTempMinus5 > compDebounce)
+    {
+      tempData -= 5;
+      timeTempMinus5 = millis();
+    }
+    
     if (tempData < 0)
       tempData = 0;
     dtostrf(tempData, 10, 1, strBuff);
     temp = strBuff;
-    toPrint += "T-" + temp + "-";
-    
-    rotAState = digitalRead(rotAPin);
-    if (rotAState != lastRotAState)
-    {
-      if (digitalRead(rotBPin) != rotAState)
-      {
-        rotData += 0.025;
-      }
-      else
-      {
-        rotData -= 0.025;
-        if (rotData <= 0)
-          rotData = 0;
-      }
-      lastRotAState = rotAState;  
-    }
-    dtostrf(rotData, 10, 3, strBuff);
-    temp = strBuff;
-    toPrint += "R-" + temp + "-";
-
-    for (int i=0; i < 8; i++)
-    {
-      if (digitalRead(voltPins[i]) == HIGH)
-        voltData += ceil(pow(2, i));
-    }
-
-    itoa(voltData, strBuff, 10);
-    temp = strBuff;
-    toPrint += "V-" + String(temp);
-  
+    toPrint += "T-" + temp;
     toPrint += "-E";
     if (currentTime - timeSend > sendDebounce)
     {

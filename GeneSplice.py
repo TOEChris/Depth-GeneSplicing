@@ -29,6 +29,7 @@ import time
 import random
 import serial
 import io
+import pygame
 
 from functools import partial
 import threading
@@ -54,7 +55,7 @@ ScreenManagement:
             size: self.size
             source: "assets/GeneSplicerBackGround.jpg"
         Rectangle:
-            source: 'kegPic.png'
+            source: 'assets/kegPic.png'
             size: 235, 235
             pos: 1050, 340
     Label:
@@ -184,7 +185,7 @@ ScreenManagement:
                         pos: self.width - 65, self.y+25
                     Color:
                         group: 'lineColor'
-                        rgba: 0,0,1,1
+                        rgba: 1,.404,0,1
                     Line:
                         id: line
                         points: self.points
@@ -195,7 +196,7 @@ ScreenManagement:
                         rgba: .475, .486, .478, 1
                     Rectangle:
                         group: 'cataTri'
-                        source: 'cataTri.png'
+                        source: 'assets/cataTri.png'
                         size: 32, 32
                         pos: self.points[-2]-5, self.points[-1]-18
             Div:
@@ -204,7 +205,7 @@ ScreenManagement:
                 
                 Image:
                     id: gifLeft
-                    source: 'particleLeft.gif'
+                    source: 'assets/particleLeft.gif'
                     anim_delay: 0
                     allow_stretch: True
                     keep_ratio: False
@@ -213,7 +214,7 @@ ScreenManagement:
                     pos: 0, status.y
                 Image:
                     id: gifRight
-                    source: 'particleRight.gif'
+                    source: 'assets/particleRight.gif'
                     anim_delay: 0
                     allow_stretch: True
                     keep_ratio: False
@@ -375,6 +376,8 @@ serBut.flush()
 sioCom = io.TextIOWrapper(io.BufferedRWPair(serCom,serCom), newline='\r\n', encoding = 'utf-8')
 sioBut = io.TextIOWrapper(io.BufferedRWPair(serBut,serBut), newline='\r\n', encoding = 'utf-8')
 
+
+pygame.mixer.pre_init(44100, -16, 2, 2048)
 #needed to give enough time for the port to initiate
 time.sleep(3)
 
@@ -437,6 +440,7 @@ def buttonTrig():
         status = sioBut.readline()
         if ('1' in status):
             app.instance.ids.catalyst.jump()
+            app._sound_library['cata'].play()
 
 class Cata(FloatLayout):
     puzzleSolved = False
@@ -445,11 +449,13 @@ class Cata(FloatLayout):
     accel = 0
     close = BooleanProperty(False)
     points = ListProperty([28,850])
-    meshPointsBot = [50,655,0,0, 321,875,0,0, 640,850,0,0, 960,950,0,0, 1280,950,0,0, 1600,800,0,0, 1895,700,0,0, 1895,655,0,0]
+    #meshPointsBot = [50,655,0,0, 321,875,0,0, 640,850,0,0, 960,950,0,0, 1280,950,0,0, 1600,800,0,0, 1895,700,0,0, 1895,655,0,0]
+    meshPointsBot = [150,663,0,0, 321,888,0,0, 645,863,0,0, 965,963,0,0, 1290,963,0,0, 1605,813,0,0, 1910,713,0,0, 1910,663,0,0]
     meshBotCollide = Collide2DPoly([float(x) for x in meshPointsBot if x != 0], cache=True)
     meshIndBot = [0,1,2,3,4,5,6,7]
-    meshPointsTop = [50,1055,0,0, 321,955,0,0, 640,955,0,0, 960,1000,0,0, 1280,1030,0,0, 1600,975,0,0, 1895,750,0,0, 1895,1055,0,0, 960,1055,0,0, 640,1055,0,0]
-    meshTopCollide = Collide2DPoly([50,1055, 321,955, 640,955, 960,1000, 1005,1000, 1380,985, 1895,750, 1895,1055, 50,1055])
+    #meshPointsTop = [63,1055,0,0, 321,955,0,0, 640,955,0,0, 960,1000,0,0, 1280,1030,0,0, 1600,975,0,0, 1895,750,0,0, 1895,1055,0,0, 960,1055,0,0, 640,1055,0,0]
+    meshPointsTop = [63,1069,0,0, 321,969,0,0, 640,969,0,0, 960,1014,0,0, 1280,1044,0,0, 1600,989,0,0, 1910,764,0,0, 1910,1069,0,0, 960,1069,0,0, 640,1069,0,0]
+    meshTopCollide = Collide2DPoly([63,1069, 321,969, 640,969, 960,1014, 1280,1044, 1391,989, 1910,764, 1910,1069, 68,1069])
     meshIndTop = [0,1,2,3,4,5,6,7,5,8,9,1,7,0]
     counter = 0
     crossed = [False, False, False, False, False]
@@ -461,7 +467,9 @@ class Cata(FloatLayout):
     def __init__(self, **kwargs):
         super(Cata, self).__init__(**kwargs)
         self.app = App.get_running_app()
-        
+        #with self.canvas:
+        #    Color(rgb=(1,0,0))
+        #    Line(points=(63,1069, 321,969, 640,969, 960,1014, 1280,1044, 1397,992, 1910,763, 1910,1069, 68,1069))
     def update_points(self, *args):
         app = self.app
         temp = []
@@ -471,6 +479,8 @@ class Cata(FloatLayout):
             if ((float(temp[1]), float(temp[0])) in self.meshBotCollide or (float(temp[1]), float(temp[0])) in self.meshTopCollide):
                 app.messagePopUp("CATALYST IMBALANCE", 56, 510)
                 app.reset("Stage")
+                app._sound_library['fail'].play()
+                app.switchSound('backEnd', 0, 0)
                 return
             #timer data, proportion of distance crossed
             if (not self.puzzleSolved):
@@ -484,25 +494,25 @@ class Cata(FloatLayout):
                     app.instance.ids.timerData.color = (1,1,1,1)
         
         lineColor = app.instance.ids.catalyst.canvas.get_group('lineColor')[0].rgba[2]
-        if (lineColor >= 1):
+        if (lineColor >= .235):
             self.colorDir = False
-        elif (lineColor < .4):
+        elif (lineColor < .404):
             self.colorDir = True
         if (self.colorDir):
             lineColor += .02
         else:
             lineColor -= .02
-        app.instance.ids.catalyst.canvas.get_group('lineColor')[0].rgba[2] = lineColor
+        app.instance.ids.catalyst.canvas.get_group('lineColor')[0].rgba[1] = lineColor
 
         #acceleration per height region
         self.accel += self.gravity
         toCheck = self.accel
-        if (toCheck < 3.5 and toCheck > 0): 
+        if (toCheck < 4 and toCheck > 0): 
             self.accel *= 1.06
         elif (toCheck < 0):
             self.accel *= 0.8
         elif (toCheck == 0):
-            self.accel = 0.5
+            self.accel = 0.25
 
         self.velocity += self.accel
         
@@ -542,10 +552,10 @@ class Cata(FloatLayout):
 
         temp[0] -= self.velocity
         if (app.started):
-            if (temp[0] > 1050):
-                temp[0] = 1050
-            elif (temp[0] < 660):
-                temp[0] = 660
+            if (temp[0] > 1150):
+                temp[0] = 1150
+            elif (temp[0] < 665):
+                temp[0] = 665
         else:
             if (temp[0] > 1000):
                 temp[0] = 1000
@@ -571,11 +581,11 @@ class Cata(FloatLayout):
             toCheck = self.points[-1]
         except IndexError:
             return
-        if (toCheck > 975 and not currentAccel == -0.15):
+        if (toCheck > 975 and not currentAccel == -0.20):
             self.accel = -0.20
-        elif(toCheck > 860 and not currentAccel == -0.21) :
+        elif(toCheck > 860 and not currentAccel == -0.27) :
             self.accel = -0.27
-        elif(toCheck > 800 and not currentAccel == -0.25):
+        elif(toCheck > 800 and not currentAccel == -0.32):
             self.accel = -0.32
         elif(not currentAccel == -0.4):
             self.accel = -0.4
@@ -671,12 +681,12 @@ class SpliceApp(App):
     grid = GridLayout(rows = 2)
     update = None
 
-    #tempTargets = [100, 152, 405, 385, 275, 36]
-    tempTargets = [0,0,0,0,0,0]
-    #voltTargets = [32, 7, 24, 228, 255, 4]
-    voltTargets = [0,0,0,0,0,0]
-    #presTargets = [9.15, 8.65, 7.20, 7.00, 2.10, 2.35]
-    presTargets = [0,0,0,0,0,0]
+    #tempTargets = [100, 152, 405, 385, 275, 36, 0]
+    tempTargets = [0,0,0,0,0,0,0] #DEBUG
+    #voltTargets = [32, 7, 24, 228, 255, 4, 0]
+    voltTargets = [0,0,0,0,0,0,0] #DEBUG
+    #presTargets = [9.15, 8.65, 7.20, 7.00, 2.10, 2.35, 0.00]
+    presTargets = [0,0,0,0,0,0,0] #DEBUG
     tempCurrent = 0
     voltCurrent = 0
     presCurrent = 0
@@ -686,11 +696,17 @@ class SpliceApp(App):
     screenSwitched = False
 
     def __init__(self, **kwargs):
-        self.serRead = Clock.schedule_interval(self.serialRead, 0.05)
+        self.serRead = Clock.schedule_interval(self.serialRead, 0.025)
         super(SpliceApp, self).__init__(**kwargs)
     
     def switchScreen(self, *args):
         self.manager.current = args[0]
+
+    #args[0] is the filename, args[1] is loops and arg[2] is channel number
+    def switchSound(self, *args):
+        if(pygame.mixer.Channel(args[2]).get_busy()):
+            pygame.mixer.Channel(args[2]).stop()
+        pygame.mixer.Channel(args[2]).play(self._sound_library[args[0]], args[1])
 
     def serialRead(self, *args):
         data = self.getLatestStatus()
@@ -705,6 +721,8 @@ class SpliceApp(App):
                         if (self.compCheck(0) == False):
                             if (not self.currentMessage):
                                 self.messagePopUp("INITIAL TARGETS NOT MET", 56, 490)
+                                app._sound_library['fail'].play()
+                                self.switchSound('backEnd', 0, 0)
                             serCom.write(b'S\r\n')
                             break
                         else:
@@ -717,6 +735,8 @@ class SpliceApp(App):
                                 self.instance.ids.temperature.children[0].text = str(self.tempTargets[1]) + " C"
                                 self.instance.ids.pressure.children[0].text = str(self.presTargets[1]) + " ATM"
                                 self.instance.ids.voltage.children[0].text = str(self.voltTargets[1]) + "V"
+                                self._sound_library['backStart'].play()
+                                Clock.schedule_once(partial(self.switchSound, "backLoop", -1, 0), self._sound_library['backStart'].get_length())
                             else:
                                 serCom.write(b'S\r\n')
                 elif (data[0] == 'T'):
@@ -768,71 +788,93 @@ class SpliceApp(App):
             if (self.compCheck(1) == False):
                 self.reset("Stage")
                 self.messagePopUp("TARGETS NOT MET", 64, 520)
+                self._sound_library['fail'].play()
+                self.switchSound('backEnd', 0, 0)
                 return False
             cata.prevPoint = 321
-            cata.nextPoint = 640
+            cata.nextPoint = 647
             cata.crossed[0] = True
             cata.canvas.get_group("coverColor")[0].rgba = [0,0,0,0]
             self.instance.ids.statusText.text = 'STAGE 2 OF 6'
             self.instance.ids.temperature.children[0].text = str(self.tempTargets[2]) + " C"
             self.instance.ids.pressure.children[0].text = str(self.presTargets[2]) + " ATM"
             self.instance.ids.voltage.children[0].text = str(self.voltTargets[2]) + "V"
-        elif(not cata.crossed[1] and temp >= 640):
+            self._sound_library['stage1'].play()
+        elif(not cata.crossed[1] and temp >= 647):
             if (self.compCheck(2) == False):
                 self.reset("Stage")
                 self.messagePopUp("TARGETS NOT MET", 64, 520)
+                self._sound_library['fail'].play()
+                self.switchSound('backEnd', 0, 0)
                 return False
-            cata.prevPoint = 640
-            cata.nextPoint = 959
+            cata.prevPoint = 647
+            cata.nextPoint = 970
             cata.crossed[1] = True
             cata.canvas.get_group("coverColor")[1].rgba = [0,0,0,0]
             self.instance.ids.statusText.text = 'STAGE 3 OF 6'
             self.instance.ids.temperature.children[0].text = str(self.tempTargets[3]) + " C"
             self.instance.ids.pressure.children[0].text = str(self.presTargets[3]) + " ATM"
             self.instance.ids.voltage.children[0].text = str(self.voltTargets[3]) + "V"
-        elif(not cata.crossed[2] and temp >= 959):
+            self._sound_library['stage2'].play()
+        elif(not cata.crossed[2] and temp >= 970):
             if (self.compCheck(3) == False):
                 self.reset("Stage")
                 self.messagePopUp("TARGETS NOT MET", 64, 520)
+                self._sound_library['fail'].play()
+                self.switchSound('backEnd', 0, 0)
                 return False
-            cata.prevPoint = 959
-            cata.nextPoint = 1280
+            cata.prevPoint = 970
+            cata.nextPoint = 1290
             cata.crossed[2] = True
             cata.canvas.get_group("coverColor")[2].rgba = [0,0,0,0]
             self.instance.ids.statusText.text = 'STAGE 4 OF 6'
             self.instance.ids.temperature.children[0].text = str(self.tempTargets[4]) + " C"
             self.instance.ids.pressure.children[0].text = str(self.presTargets[4]) + " ATM"
             self.instance.ids.voltage.children[0].text = str(self.voltTargets[4]) + "V"
-        elif(not cata.crossed[3] and temp >= 1280):
+            self._sound_library['stage3'].play()
+        elif(not cata.crossed[3] and temp >= 1290):
             compResults = self.compCheck(4)
             if (self.compCheck(4) == False):
                 self.reset("Stage")
                 self.messagePopUp("TARGETS NOT MET", 64, 520)
+                self._sound_library['fail'].play()
+                self.switchSound('backEnd', 0, 0)
                 return False
-            cata.prevPoint = 1280
-            cata.nextPoint = 1600
+            cata.prevPoint = 1290
+            cata.nextPoint = 1614
             cata.crossed[3] = True
             cata.canvas.get_group("coverColor")[3].rgba = [0,0,0,0]
             self.instance.ids.statusText.text = 'STAGE 5 OF 6'
             self.instance.ids.temperature.children[0].text = str(self.tempTargets[5]) + " C"
             self.instance.ids.pressure.children[0].text = str(self.presTargets[5]) + " ATM"
             self.instance.ids.voltage.children[0].text = str(self.voltTargets[5]) + "V"
-        elif(not cata.crossed[4] and temp >= 1600):
+            self._sound_library['stage4'].play()
+        elif(not cata.crossed[4] and temp >= 1614):
             if (self.compCheck(5) == False):
                 self.reset("Stage")
                 self.messagePopUp("TARGETS NOT MET", 64, 520)
+                self._sound_library['fail'].play()
+                self.switchSound('backEnd', 0, 0)
                 return False
-            cata.prevPoint = 1600
-            cata.nextPoint = 1892
+            cata.prevPoint = 1614
+            cata.nextPoint = 1910
             cata.crossed[4] = True
             cata.canvas.get_group("coverColor")[4].rgba = [0,0,0,0]
             self.instance.ids.statusText.text = 'STAGE 6 OF 6'
-            self.instance.ids.temperature.children[0].text = "-"
-            self.instance.ids.pressure.children[0].text = "-"
-            self.instance.ids.voltage.children[0].text = "-"
-        elif(temp >= 1892):
+            self.instance.ids.temperature.children[0].text = str(self.tempTargets[6]) + " C"
+            self.instance.ids.pressure.children[0].text = str(self.presTargets[6]) + " ATM"
+            self.instance.ids.voltage.children[0].text = str(self.voltTargets[6]) + "V"
+            self._sound_library['stage5'].play()
+        elif(temp >= 1910):
+            if (self.compCheck(6) == False):
+                self.reset("Stage")
+                self.messagePopUp("TARGETS NOT MET", 64, 520)
+                self._sound_library['fail'].play()
+                self.switchSound('backEnd', 0, 0)
+                return False
             cata.puzzleSolved = True
-            self.win("Gene") 
+            self.win("Gene")
+            self.switchScreen('backEnd', 0, 0)
         return True
 
     def compCheck(self, *args):
@@ -913,8 +955,29 @@ class SpliceApp(App):
         self.manager.add_widget(self.instance)
         self.manager.add_widget(self.compScreen)
         self.manager.current = 'CompScreen'
+                                                                                                                                                       
+        pygame.mixer.init()
+        pygame.init()
 
-        self.buttonThread = threading.Thread(target = buttonTrig).start()
+        self._sound_library = {
+            "backStart": pygame.mixer.Sound('audio/start.wav',),
+            "backLoop": pygame.mixer.Sound('audio/loop.wav'),
+            "backEnd": pygame.mixer.Sound('audio/end.wav'),
+            "fail": pygame.mixer.Sound('audio/fail.wav'),
+            "complete": pygame.mixer.Sound('audio/complete.wav'),
+            "success": pygame.mixer.Sound('audio/success.wav'),
+            "cata": pygame.mixer.Sound('audio/cataNoise.wav'),
+            "stage1": pygame.mixer.Sound('audio/stage1.wav'),
+            "stage2": pygame.mixer.Sound('audio/stage2.wav'),
+            "stage3": pygame.mixer.Sound('audio/stage3.wav'),
+            "stage4": pygame.mixer.Sound('audio/stage4.wav'),
+            "stage5": pygame.mixer.Sound('audio/stage5.wav')
+        }
+        self._sound_library['backStart'].set_volume(0.3)
+        self._sound_library['backLoop'].set_volume(0.3)
+        self._sound_library['backEnd'].set_volume(0.3)
+        self._sound_library['cata'].set_volume(0.3)
+        self.buttonThread = threading.Thread(target = buttonTrig).start() 
         return self.manager
         
 
@@ -989,6 +1052,7 @@ class SpliceApp(App):
                 Clock.unschedule(self.winAnim)
                 appInst.view.children[0].children[1].font_size = 48
                 appInst.view.children[0].children[1].text = "Memory Write Successful"
+                appInst._sound_library["success"].play()
                 serCom.write(b'W\r\n')
             else:
                 progBar.set_value(progBar.value + 1)
@@ -1002,7 +1066,7 @@ class SpliceApp(App):
             self.grid.add_widget(GenLabel(text='Writing to Memory Module...', pos=(800, 900), font_size = 46, size_hint_y = 0.2))
             self.grid.add_widget(CircularProgressBar(id='progressBar', height=300, width=300, size_hint = (None,None)))
             with self.grid.canvas.before:
-                uixImage(source='blackBg.png', anim_delay=0, size= (670,470), pos=(625,307), allow_stretch = True, keep_ratio = False)
+                uixImage(source='assets/blackBg.png', anim_delay=0, size= (670,470), pos=(630,315), allow_stretch = True, keep_ratio = False)
         
             self.view.add_widget(self.grid)
             self.view.open(animation=True)
@@ -1024,7 +1088,7 @@ class SpliceApp(App):
         Clock.schedule_once(partial(removeLabel, self, error), 3.5)
 
 def serverRun(server_class=Server, handler_class=Handler, port=80):
-    server_address = ('10.24.7.62', port)
+    server_address = ('10.24.7.230', port)
     httpd = server_class(server_address, handler_class)
     print("serving at port",port)
     t = threading.Thread(target = httpd.process_requests)
@@ -1033,5 +1097,4 @@ def serverRun(server_class=Server, handler_class=Handler, port=80):
 if __name__ == '__main__':
     Builder.load_string(kv)
     serverRun()
-    time.sleep(1)
     SpliceApp().run()
