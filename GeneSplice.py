@@ -1098,7 +1098,7 @@ class SpliceApp(App):
             self.grid.add_widget(GenLabel(text='Writing to Memory Module...', pos=(800, 900), font_size = 46, size_hint_y = 0.2))
             self.grid.add_widget(CircularProgressBar(id='progressBar', height=300, width=300, size_hint = (None,None)))
             with self.grid.canvas.before:
-                uixImage(source='assets/blackBg.png', anim_delay=0, size= (670,470), pos=(630,315), allow_stretch = True, keep_ratio = False)
+                uixImage(source='assets/blackBg.png', anim_delay=0, size= (670,470), pos=(623,307), allow_stretch = True, keep_ratio = False)
         
             self.view.add_widget(self.grid)
             self.view.open(animation=True)
