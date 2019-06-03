@@ -367,19 +367,21 @@ ScreenManagement:
                     text: '100 C'
 '''
 
-portCom = 'COM3'
-portBut = 'COM4'
+portCom = 'COM3'    #component Arduino (Component_Com)
+portBut = 'COM4'    #cata button Arduino
 serCom = serial.Serial(portCom, baudrate=9600, timeout = 0)
 serBut = serial.Serial(portBut, baudrate = 19200, timeout = 0)
 serCom.flush()
 serBut.flush()
-sioCom = io.TextIOWrapper(io.BufferedRWPair(serCom,serCom), newline='\r\n', encoding = 'utf-8')
+sioCom = io.TextIOWrapper(io.BufferedRWPair(serCom,serCom), newline='\r\n', encoding = 'utf-8')  #initialization
 sioBut = io.TextIOWrapper(io.BufferedRWPair(serBut,serBut), newline='\r\n', encoding = 'utf-8')
 
 
-pygame.mixer.pre_init(44100, -16, 2, 2048)
-#needed to give enough time for the port to initiate
+pygame.mixer.pre_init(44100, -16, 2, 2048)              #sounds initialization
+#needed to give enough time for the port to initiate!!
 time.sleep(3)
+
+#Server and handler classes
 
 class Handler(BaseHTTPRequestHandler):
     def _set_headers(self):
@@ -388,7 +390,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
 
-    #only HTTP request needed, sent by EscapeRoomMaster
+    #only HTTP request needed, sent by Client
     def do_GET(self):
         app = App.get_running_app()
         self._set_headers()
@@ -432,8 +434,9 @@ class GeneScreen(Screen):
     pass
 class CompScreen(Screen):
     def build(self, *args):
-        self.labels = [self.stat1, self.stat2, self.stat3]
+        self.labels = [self.stat1, self.stat2, self.stat3] #taken from the kv string, needed to reference in Python code
 
+#called by and only by the cata button thread for when the cata button is pressed
 def buttonTrig():
     app = App.get_running_app()
     while True:
@@ -444,39 +447,55 @@ def buttonTrig():
 
 class Cata(FloatLayout):
     puzzleSolved = False
-    gravity = 0.06
-    velocity = 0
-    accel = 0
-    close = BooleanProperty(False)
-    points = ListProperty([28,850])
-    #meshPointsBot = [50,655,0,0, 321,875,0,0, 640,850,0,0, 960,950,0,0, 1280,950,0,0, 1600,800,0,0, 1895,700,0,0, 1895,655,0,0]
-    meshPointsBot = [150,663,0,0, 321,888,0,0, 645,863,0,0, 965,963,0,0, 1290,963,0,0, 1605,813,0,0, 1910,713,0,0, 1910,663,0,0]
+    gravity = 0.06  #for flappy bird current point
+    velocity = 0    #dictates up or down direction
+    accel = 0       #dictates change in velocity, considers gravity and current velocity
+    close = BooleanProperty(False) #constant property, dont change
+    points = ListProperty([28,850]) #points in the line throughout the wrong puzzle. Change these two points if you want to change the first point
+
+    #The points for the bottom boundary polygon in catalyst 
+    meshPointsBot = [150,655,0,0, 321,875,0,0, 640,850,0,0, 960,950,0,0, 1280,950,0,0, 1600,800,0,0, 1895,700,0,0, 1895,655,0,0]
+    #Collider polygon is seperate from the visible polygon. If you change the boundaries, make sure the collider mesh corresponds
     meshBotCollide = Collide2DPoly([float(x) for x in meshPointsBot if x != 0], cache=True)
+    #determines what order the poitns in meshPointsBot are drawn
     meshIndBot = [0,1,2,3,4,5,6,7]
-    #meshPointsTop = [63,1055,0,0, 321,955,0,0, 640,955,0,0, 960,1000,0,0, 1280,1030,0,0, 1600,975,0,0, 1895,750,0,0, 1895,1055,0,0, 960,1055,0,0, 640,1055,0,0]
-    meshPointsTop = [63,1069,0,0, 321,969,0,0, 640,969,0,0, 960,1014,0,0, 1280,1044,0,0, 1600,989,0,0, 1910,764,0,0, 1910,1069,0,0, 960,1069,0,0, 640,1069,0,0]
-    meshTopCollide = Collide2DPoly([63,1069, 321,969, 640,969, 960,1014, 1280,1044, 1391,989, 1910,764, 1910,1069, 68,1069])
+
+    #Same as above however this was harder to fill. The visible and collider polygon share similar but not exactly the same points
+    meshPointsTop = [63,1055,0,0, 321,955,0,0, 640,955,0,0, 960,1000,0,0, 1280,1030,0,0, 1600,975,0,0, 1895,750,0,0, 1895,1055,0,0, 960,1055,0,0, 640,1055,0,0]
+    #IF YOU NEED TO CHANGE COLLIDER POLYGON
+    #1. Adjust the visual (meshPointsTop or meshPointsBot) to what you want
+    #2. Outline the points of the collider by starting up and clicking on the vertexes or points you want to outline the collider
+    #3. The points will output to the console
+    #4. Put the points into the meshTopCollide or meshBotCollide accordingly. There may be some slight offset in the points entered and where it outputs on screen
+    #because of the window/display translation so adjust accordingly
+    meshTopCollide = Collide2DPoly([63,1055, 321,955, 640,955, 960,1000, 1280,1030, 1391,989, 1895,750, 1895,1055, 63,1055])
+    #Order is different to fill the polygon. It is purely for visuals
     meshIndTop = [0,1,2,3,4,5,6,7,5,8,9,1,7,0]
-    counter = 0
-    crossed = [False, False, False, False, False]
+    counter = 0 #used to track when to stamp the current point to create the line
+    crossed = [False, False, False, False, False] #flags to see what stages have been cleared
     linewidth = NumericProperty(3)
+    #used to calculate the timer data. Change if the first stage marker position is changed
     nextPoint = 321
     prevPoint = 28
+    #used to pulse the line color
     colorDir = False
 
     def __init__(self, **kwargs):
         super(Cata, self).__init__(**kwargs)
         self.app = App.get_running_app()
+        #DEBUG code if you need to see the outline of either collider polygon
         #with self.canvas:
         #    Color(rgb=(1,0,0))
-        #    Line(points=(63,1069, 321,969, 640,969, 960,1014, 1280,1044, 1397,992, 1910,763, 1910,1069, 68,1069))
+        #    Line(points=(63,1055, 321,955, 640,955, 960,1000, 1280,1030, 1391,989, 1895,750, 1895,1055, 63,1055))
+
+    #is called by a Clock schedule to move cata point and check fail and success conditions
     def update_points(self, *args):
         app = self.app
-        temp = []
+        temp = []   #used to store the most recent two points of the cata line
         temp.append(self.points.pop())
         temp.append(self.points.pop())
-        if (app.started):
-            if ((float(temp[1]), float(temp[0])) in self.meshBotCollide or (float(temp[1]), float(temp[0])) in self.meshTopCollide):
+        if (app.started): #only has to check success and fail conditions if the trail has started
+            if ((float(temp[1]), float(temp[0])) in self.meshBotCollide or (float(temp[1]), float(temp[0])) in self.meshTopCollide): #checks if point is out of bounds
                 app.messagePopUp("CATALYST IMBALANCE", 56, 510)
                 app.reset("Stage")
                 app._sound_library['fail'].play()
@@ -493,6 +512,7 @@ class Cata(FloatLayout):
                 else:
                     app.instance.ids.timerData.color = (1,1,1,1)
         
+        #pulses cata line color
         lineColor = app.instance.ids.catalyst.canvas.get_group('lineColor')[0].rgba[2]
         if (lineColor >= .235):
             self.colorDir = False
@@ -520,6 +540,7 @@ class Cata(FloatLayout):
             temp[1] += 1.1
         self.points.append(temp[1])
 
+        #changes the color of the stage current values if the target has been met
         for pos,x in enumerate(self.crossed):
             if (not app.started):
                 if (app.tempCurrent == app.tempTargets[0] and app.instance.ids.tempInfo.color == [1,1,1,1]):
@@ -562,11 +583,13 @@ class Cata(FloatLayout):
             elif(temp[0] < 700):
                 temp[0] = 700
         temp[0] = round(temp[0], 1)
+        #calculated points are reinserted into the full list of Line points
         self.points.append(temp[0])
         
         if (self.velocity > 0):
             self.velocity = 0
         
+        #if x (currently 10) cycles have ran, appends the points twice so the line is continued
         if (app.started):
             if (self.counter == 10):
                 self.points.append(temp[1])
@@ -574,7 +597,7 @@ class Cata(FloatLayout):
                 self.counter = 0
             else:
                 self.counter += 1
-            
+    #recalculates acceleration everytime the cata point jumps
     def jump(self, *args):
         currentAccel = self.accel
         try:
@@ -601,9 +624,10 @@ class Div(Widget):
 class Base(GridLayout):
     def __init__(self, **kwargs):
         super(Base, self).__init__(**kwargs)
-
+    #function to print the clicked coordinates to the console
     def on_touch_down(self, touch):
         print(touch.pos)
+#Generic Label
 class GenLabel(Label):
     def __init__(self, **kwargs):
         self.font_name = 'ColdWarm.otf'
@@ -677,16 +701,19 @@ class SpliceApp(App):
     wonLabel = InstructionGroup()
     errorLabel = InstructionGroup()
     transitionLabel = InstructionGroup()
+    #The window that pops up when the puzzle is won
     view = ModalView(size_hint=(None, None), size=(700, 500))
+    #Holds the label and progress bar in the pop up window
     grid = GridLayout(rows = 2)
-    update = None
+   #variable to hold the update_points Clock event to check if its scheduled
+    update = None   
 
-    #tempTargets = [100, 152, 405, 385, 275, 36, 0]
-    tempTargets = [0,0,0,0,0,0,0] #DEBUG
-    #voltTargets = [32, 7, 24, 228, 255, 4, 0]
-    voltTargets = [0,0,0,0,0,0,0] #DEBUG
-    #presTargets = [9.15, 8.65, 7.20, 7.00, 2.10, 2.35, 0.00]
-    presTargets = [0,0,0,0,0,0,0] #DEBUG
+    tempTargets = [100, 152, 405, 385, 275, 36, 0]
+    #tempTargets = [0,0,0,0,0,0,0] #DEBUG
+    voltTargets = [32, 7, 24, 228, 255, 4, 0]
+    #voltTargets = [0,0,0,0,0,0,0] #DEBUG
+    presTargets = [9.15, 8.65, 7.20, 7.00, 2.10, 2.35, 0.00]
+    #presTargets = [0,0,0,0,0,0,0] #DEBUG
     tempCurrent = 0
     voltCurrent = 0
     presCurrent = 0
@@ -709,11 +736,14 @@ class SpliceApp(App):
         pygame.mixer.Channel(args[2]).play(self._sound_library[args[0]], args[1])
 
     def serialRead(self, *args):
+        #returns Serial data from Arduino in list structure
         data = self.getLatestStatus()
         if (not data):
             return
         del data[0]    #gets rid of Start marker (S)
         del data[-1]   #gets rid of End marker (E)
+
+        #loop takes the first two items off the line until its empty (Ex: [R, 10.175])
         while(len(data) >= 2):
             if(self.manager.current == "GeneScreen"):
                 if(data[0] == 'W' and not self.started):
@@ -721,16 +751,16 @@ class SpliceApp(App):
                         if (self.compCheck(0) == False):
                             if (not self.currentMessage):
                                 self.messagePopUp("INITIAL TARGETS NOT MET", 56, 490)
-                                app._sound_library['fail'].play()
+                                self._sound_library['fail'].play()
                                 self.switchSound('backEnd', 0, 0)
-                            serCom.write(b'S\r\n')
+                            serCom.write(b'S\r\n') #sends back flag to Arduino to switch back to pre-trial mode
                             break
                         else:
                             if (not self.currentMessage):
                                 self.started = True
                                 self.instance.ids.catalyst.points.append(self.instance.ids.catalyst.points[-2])
                                 self.instance.ids.catalyst.points.append(self.instance.ids.catalyst.points[-2])
-                                self.instance.ids.catalyst.canvas.get_group('cataTriColor')[0].rgba[3] = 0
+                                self.instance.ids.catalyst.canvas.get_group('cataTriColor')[0].rgba[3] = 0 #gets rid of silver triangle
                                 self.instance.ids.statusText.text = 'STAGE 1 OF 6'
                                 self.instance.ids.temperature.children[0].text = str(self.tempTargets[1]) + " C"
                                 self.instance.ids.pressure.children[0].text = str(self.presTargets[1]) + " ATM"
@@ -777,9 +807,10 @@ class SpliceApp(App):
                         self.compScreen.canvas.add(self.transitionLabel)
                         if (not self.update):
                             self.update = Clock.schedule_interval(self.instance.ids.catalyst.update_points, .016)
-                        serCom.write(b'J\r\n')
+                        serCom.write(b'J\r\n') #sends flag back to Ardunio that lets it know the puzzle recognized to switch screen
                         Clock.schedule_once(partial(self.switchScreen, "GeneScreen"), 2)
             del data[0:1]
+    #args[0] is the current x pos of the latest cata line point
     def stageCheck(self, *args):
         temp = args[0]
         cata = self.instance.ids.catalyst
@@ -874,9 +905,10 @@ class SpliceApp(App):
                 return False
             cata.puzzleSolved = True
             self.win("Gene")
-            self.switchScreen('backEnd', 0, 0)
+            self.switchSound('backEnd', 0, 0)
         return True
 
+    #checks if the 3 stations have met their targets args[0]: the current stage
     def compCheck(self, *args):
         def flipColors(*args):
             bottom = self.instance.ids
@@ -902,7 +934,7 @@ class SpliceApp(App):
                     bottom.voltage.canvas.get_group('background')[0].rgba = (.6275,0,0,1)
                 else:
                     bottom.voltage.canvas.get_group('background')[0].rgba = voltOrig.rgba
-            Clock.schedule_once(partial(flipColors, comps, args[1]+1), .5)
+            Clock.schedule_once(partial(flipColors, comps, args[1]+1), .5) 
 
         stage = args[0]
         wrongComps = [False, False, False]
@@ -916,7 +948,7 @@ class SpliceApp(App):
         if (True in wrongComps):
             if (not self.flashing):
                 self.flashing = True
-                flipColors(wrongComps, 0)
+                flipColors(wrongComps, 0) #args[0]: the stages to flash args[1]: a counter to keep track of how many times to call the flipColors function
             return False
         return True
        
@@ -1040,7 +1072,7 @@ class SpliceApp(App):
             self.instance.canvas.remove(self.wonLabel)
             self.instance.ids.catalyst.puzzleSolved = False
             Clock.schedule_once(partial(self.switchScreen, "CompScreen"), 0.5)
-
+        #for when the fail the trial, not ERM reset
         elif (args[0] == "Stage"):
             serCom.write(b'S\r\n')
             self.instance.ids.catalyst.canvas.get_group('cataTriColor')[0].rgba[3] = 1
@@ -1049,7 +1081,7 @@ class SpliceApp(App):
         def animate(appInst, *largs):
             progBar = appInst.view.children[0].children[0]
             if (appInst.view.children[0].children[0].value >= 100):
-                Clock.unschedule(self.winAnim)
+                self.winAnim.cancel()
                 appInst.view.children[0].children[1].font_size = 48
                 appInst.view.children[0].children[1].text = "Memory Write Successful"
                 appInst._sound_library["success"].play()
@@ -1058,7 +1090,7 @@ class SpliceApp(App):
                 progBar.set_value(progBar.value + 1)
         if (args[0] == "Gene"):
             try:
-                Clock.unschedule(self.update)
+                self.update.cancel()
             except AttributeError:
                 pass
         if (len(self.grid.children) < 2):

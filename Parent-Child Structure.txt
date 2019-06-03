@@ -1,0 +1,12 @@
+				ScreenManagement (Screen Manager)
+					   /          \
+				CompScreen (Screen)  GeneScreen(Screen)
+				/				||
+			Children Widgets		 Base(GridLayout)
+						/		 	     	\	
+					 Top(GridLayout)           	 Bottom(GridLayout)
+					/	        \	      /		   |	     \
+				Cata(FloatLayout)    Div(Widget) Div(Widget)   Div(Widget)   Div(Widget)
+				  id: catalyst	     id: status  id: pressure  id: voltage   id: temperature
+					||		  ||	     ||		   ||		  ||
+			          Child Widgets	    Child Widgets Child Widgets Child Widgets Child Widgets	
