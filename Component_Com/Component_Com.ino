@@ -5,14 +5,14 @@
 
 const byte numReaders = 3;
 //47: Human DNA | 45: Cephalopod DNA | 43: Catalyst
-const byte ssPins[numReaders] = {47, 45, 43};
+const byte ssPins[numReaders] = {45, 47, 43};
 const byte resetPin = 5;
 
 MFRC522 mfrc522[numReaders];
 
 String currentIDs[numReaders];
 
-String correctIDs[numReaders] = {"ba9d18d3", "1474f1d5", "ecdcd183"}; //ala3d083
+String correctIDs[numReaders] = {"4df6d5", "4bd9587c", "ebd8587c"}; //ala3d083 4bd9587c
 String idStatus[numReaders] = {"N", "N", "N"};
 
 MFRC522::MIFARE_Key key;
@@ -21,8 +21,8 @@ MFRC522::MIFARE_Key key;
 byte sector         = 1;
 byte blockAddr      = 4;
 byte dataBlock[]    = {
-    //0xda, 0xdd, 0xee   //correct values for keg
-    0x11, 0x11, 0x11     //test values
+    0xda, 0xdd, 0xee   //correct values for keg
+    //0x11, 0x11, 0x11     //test values
 };
 byte trailerBlock   = 7;
 MFRC522::StatusCode status;
@@ -116,12 +116,13 @@ void setup() {
     Serial.print(F(". Version : "));
     mfrc522[i].PCD_DumpVersionToSerial();
     #endif
-    
+    //mfrc522[i].PCD_AntennaOff();
     delay(100);
   }
 }
 
 void loop() {
+  //Serial.println(digitalRead(startPin));
   // put your main code here, to run repeatedly:
   if (Serial.available())
   {
@@ -170,14 +171,16 @@ String rfidCheck() {
     // If the current reading is different from the last known reading
     if (readRFID != currentIDs[i])
       changedValue = true;
-    //Serial.println(readRFID);  
-
+    Serial.println(readRFID);  
+    //mfrc522[i].PCD_AntennaOff();
     currentIDs[i] = readRFID;
     if (currentIDs[i] == correctIDs[i]){
+      
       if (i == 1 && !kegComplete) //special validation for keg, need to read rfid data
         kegComplete = validate(mfrc522[i]);
       else
         idStatus[i] = "Y"; //yes
+      
     }
     else
     {
@@ -185,7 +188,7 @@ String rfidCheck() {
         kegComplete = false;
       idStatus[i] = "N"; //no
     }
-    mfrc522[i].PCD_AntennaOff();
+    
   }
   
   String rfidData = "S-C-";
@@ -203,7 +206,7 @@ String rfidCheck() {
   }
   rfidData += "-E";
   //DEBUG
-  rfidData = "S-C-YYY-E";
+  //rfidData = "S-C-YYY-E";
   return rfidData;
 }
 

@@ -55,17 +55,29 @@ ScreenManagement:
             size: self.size
             source: "assets/GeneSplicerBackGround.jpg"
         Rectangle:
-            source: 'assets/kegPic.png'
+            source: 'assets/icons/C_DNA_S.png'
             size: 235, 235
             pos: 1050, 340
+        Rectangle:
+            source: 'assets/icons/CATA_S.png'
+            size: 235, 235
+            pos: 600, 340
+        Rectangle:
+            source: 'assets/kegPic.png'
+            size: 235, 235
+            pos: 155, 340
+        Rectangle:
+            source: 'assets/icons/MEM_MOD_S.png'
+            size: 235, 235
+            pos: 1450, 340
     Label:
         font_size: 56
         font_name: 'LiquidCrystal-Normal.otf'
         color: (0,1,0,1)
         text: "ENGAGED"
-        pos: -680,-325
+        pos: 618,-325
     Label:
-        id: rfidStatus1
+        id: rfidStatus3
         font_size: 56
         font_name: 'LiquidCrystal-Normal.otf'
         color: (.909,.133,.133,1)
@@ -77,14 +89,14 @@ ScreenManagement:
         font_name: 'LiquidCrystal-Normal.otf'
         color: (.909,.133,.133,1)
         text: "MISSING"
-        pos: 195,-325
+        pos: -680,-325
     Label:
-        id: rfidStatus3
+        id: rfidStatus1
         font_size: 56
         font_name: 'LiquidCrystal-Normal.otf'
         color: (.909,.133,.133,1)
         text: "MISSING"
-        pos: 618,-325
+        pos: 195,-325 
 
 <GeneScreen>:
     canvas.before:
@@ -376,6 +388,7 @@ serBut.flush()
 sioCom = io.TextIOWrapper(io.BufferedRWPair(serCom,serCom), newline='\r\n', encoding = 'utf-8')  #initialization
 sioBut = io.TextIOWrapper(io.BufferedRWPair(serBut,serBut), newline='\r\n', encoding = 'utf-8')
 
+comp = False
 
 pygame.mixer.pre_init(44100, -16, 2, 2048)              #sounds initialization
 #needed to give enough time for the port to initiate!!
@@ -392,10 +405,13 @@ class Handler(BaseHTTPRequestHandler):
 
     #only HTTP request needed, sent by Client
     def do_GET(self):
+        global comp
         app = App.get_running_app()
         self._set_headers()
         if (self.path == "/status"):
-            if (app.instance.ids.catalyst.puzzleSolved):
+            if(comp == True):
+                self.wfile.write(bytes("Complete", 'utf-8'))
+            elif (app.instance.ids.catalyst.puzzleSolved):
                 self.wfile.write(bytes("Splicer Won", 'utf-8'))
             elif (app.manager.current == "CompScreen"):
                 rfidCurrent = app.rfidCurrent
@@ -420,7 +436,11 @@ class Handler(BaseHTTPRequestHandler):
                 app.win("Gene")
         elif(self.path == "/reset"):
             self.wfile.write(bytes("Splicer Reset", "utf-8"))
+            comp = False
             app.reset("Full")
+        elif(self.path == "/complete"):
+            self.wfile.write(bytes("Complete", "utf-8"))
+            comp = True
 
 #seperate thread is made to manage all network requests, class shouldn't need to be changed
 class Server(socketserver.ThreadingMixIn, HTTPServer):
@@ -442,8 +462,9 @@ def buttonTrig():
     while True:
         status = sioBut.readline()
         if ('1' in status):
-            app.instance.ids.catalyst.jump()
-            app._sound_library['cata'].play()
+            if(app.manager.current == 'GeneScreen'):
+                app.instance.ids.catalyst.jump()
+                app._sound_library['cata'].play()
 
 class Cata(FloatLayout):
     puzzleSolved = False
@@ -708,11 +729,11 @@ class SpliceApp(App):
    #variable to hold the update_points Clock event to check if its scheduled
     update = None   
 
-    tempTargets = [100, 152, 405, 385, 275, 36, 0]
+    tempTargets = [100, 152, 282, 385, 244, 125, 0]
     #tempTargets = [0,0,0,0,0,0,0] #DEBUG
     voltTargets = [32, 7, 24, 228, 255, 4, 0]
     #voltTargets = [0,0,0,0,0,0,0] #DEBUG
-    presTargets = [9.15, 8.65, 7.20, 7.00, 2.10, 2.35, 0.00]
+    presTargets = [9.15, 8.65, 7.20, 7.00, 4.10, 2.35, 0.00]
     #presTargets = [0,0,0,0,0,0,0] #DEBUG
     tempCurrent = 0
     voltCurrent = 0
@@ -729,7 +750,7 @@ class SpliceApp(App):
     def switchScreen(self, *args):
         self.manager.current = args[0]
 
-    #args[0] is the filename, args[1] is loops and arg[2] is channel number
+    #args[0] is the filename, args[1] is loops amount and arg[2] is channel number
     def switchSound(self, *args):
         if(pygame.mixer.Channel(args[2]).get_busy()):
             pygame.mixer.Channel(args[2]).stop()
